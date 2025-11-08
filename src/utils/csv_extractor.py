@@ -86,8 +86,13 @@ class CSVExtractor:
         if not self.time_series_metadata:
             self.extract_metadata()
 
+        filtered_metadata = {
+            ts_id: meta for ts_id, meta in self.time_series_metadata.items()
+            if not (ts_id.endswith('LE02') or ts_id.endswith('GTE02'))
+        }
+
         print(f"\n{'='*60}")
-        print(f"Processing {len(self.time_series_metadata)} CSV files")
+        print(f"Processing {len(filtered_metadata)} CSV files (skipping LE02/GTE02 variants)")
         print(f"Output directory: {self.output_dir}")
         print(f"{'='*60}\n")
 
@@ -95,7 +100,7 @@ class CSVExtractor:
         skip_count = 0
         error_count = 0
 
-        for ts_id, metadata in self.time_series_metadata.items():
+        for ts_id, metadata in filtered_metadata.items():
 
             output_path = os.path.join(self.output_dir, f"{ts_id}.csv")
             if skip_existing and os.path.exists(output_path):
@@ -116,9 +121,10 @@ class CSVExtractor:
         print(f"\n{'='*60}")
         print(f"Processing complete!")
         print(f"  Success: {success_count}")
-        print(f"  Skipped: {skip_count}")
+        print(f"  Skipped (existing): {skip_count}")
         print(f"  Errors: {error_count}")
-        print(f"  Total: {len(self.time_series_metadata)}")
+        print(f"  Filtered out (LE02/GTE02): {len(self.time_series_metadata) - len(filtered_metadata)}")
+        print(f"  Total processed: {len(filtered_metadata)}")
         print(f"\nProcessed files saved to: {self.output_dir}/")
 
         return self.processed_files
