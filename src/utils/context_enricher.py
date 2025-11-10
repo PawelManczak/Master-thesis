@@ -140,7 +140,7 @@ class ContextEnricher:
 def main():
     import sys
 
-    rdf_file = "/Users/pawelmanczak/mgr sem 2/masters thesis/data/processed/GraphNeuralNetwork_P20V5.rdf"
+    rdf_file = "/Users/pawelmanczak/mgr sem 2/masters thesis/data/processed/rdf/GraphNeuralNetwork_P20V5.rdf"
     csv_dir = "/Users/pawelmanczak/mgr sem 2/masters thesis/data/processed/csv_data"
 
     if len(sys.argv) > 1:

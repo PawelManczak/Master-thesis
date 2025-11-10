@@ -328,7 +328,7 @@ def generate_all_participants_for_video(input_file, output_dir, video):
 
 if __name__ == "__main__":
     input_file = "/Users/pawelmanczak/mgr sem 2/masters thesis/data/processed/GraphNeuralNetwork_cleaned.rdf"
-    output_dir = "/Users/pawelmanczak/mgr sem 2/masters thesis/data/processed"
+    output_dir = "/Users/pawelmanczak/mgr sem 2/masters thesis/data/processed/rdf"
 
     print("\n" + "="*60)
     print("RDF GRAPH FILTER - Select participant and video")
@@ -380,5 +380,5 @@ if __name__ == "__main__":
     print(f"\nTo analyze the data, use:")
     print(f"  from rdflib import Graph")
     print(f"  g = Graph()")
-    print(f"  g.parse('data/processed/GraphNeuralNetwork_P{participant}V{video}.rdf')")
+    print(f"  g.parse('data/processed/rdf/GraphNeuralNetwork_P{participant}V{video}.rdf')")
 
