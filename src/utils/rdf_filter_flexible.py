@@ -1,11 +1,20 @@
 import sys
 import re
+import os
 from rdflib import Graph, Namespace
 from collections import deque
 
 
 def extract_subgraph(input_file, output_file, participant, video):
     """
+    Extract a subgraph for a specific participant and video combination.
+
+    Args:
+        input_file: Path to the input RDF file
+        output_file: Path to save the filtered RDF file
+        participant: Participant ID (int)
+        video: Video ID (int)
+
     Returns:
         Graph: The filtered RDF graph, or None if the node doesn't exist
     """
@@ -196,7 +205,9 @@ def extract_subgraph(input_file, output_file, participant, video):
 
     return new_g
 
+
 def list_available_combinations(input_file):
+    """Display available participant and video combinations"""
     print(f"\nLoading RDF file: {input_file}")
     g = Graph()
     g.parse(input_file, format="xml")
@@ -230,25 +241,144 @@ def list_available_combinations(input_file):
     print(f"Participants: {len(by_participant)}")
     print(f"{'='*60}\n")
 
+    return by_participant
+
+
+def generate_all_participants_for_video(input_file, output_dir, video):
+    """
+    Generate RDF files for all participants for a specific video.
+
+    Args:
+        input_file: Path to the input RDF file
+        output_dir: Directory to save the filtered RDF files
+        video: Video ID (int)
+
+    Returns:
+        list: List of tuples (participant_id, output_file_path, success)
+    """
+    print(f"\n{'='*60}")
+    print(f"GENERATING FILES FOR ALL PARTICIPANTS - VIDEO {video}")
+    print(f"{'='*60}\n")
+
+    # Get all available combinations
+    print(f"Analyzing available combinations...")
+    g = Graph()
+    g.parse(input_file, format="xml")
+
+    # Find all participants for this video
+    participants = set()
+    for s, p, o in g:
+        s_str = str(s)
+        match = re.search(rf'actExecP(\d+)V{video}(?![0-9])', s_str)
+        if match:
+            participant = int(match.group(1))
+            participants.add(participant)
+
+    participants = sorted(participants)
+
+    if not participants:
+        print(f"ERROR: No participants found for video V{video}")
+        return []
+
+    print(f"Found {len(participants)} participants for video V{video}:")
+    print(f"  Participants: {', '.join([f'P{p}' for p in participants])}\n")
+
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Generate files for each participant
+    results = []
+    successful = 0
+    failed = 0
+
+    for participant in participants:
+        output_file = os.path.join(output_dir, f"GraphNeuralNetwork_P{participant}V{video}.rdf")
+
+        print(f"\n{'='*60}")
+        print(f"Processing: P{participant}V{video} ({successful + failed + 1}/{len(participants)})")
+        print(f"{'='*60}")
+
+        try:
+            result = extract_subgraph(input_file, output_file, participant, video)
+            if result is not None:
+                results.append((participant, output_file, True))
+                successful += 1
+                print(f"✓ Successfully generated: {output_file}")
+            else:
+                results.append((participant, output_file, False))
+                failed += 1
+                print(f"✗ Failed to generate: {output_file}")
+        except Exception as e:
+            results.append((participant, output_file, False))
+            failed += 1
+            print(f"✗ Error processing P{participant}V{video}: {str(e)}")
+
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"GENERATION COMPLETE - VIDEO {video}")
+    print(f"{'='*60}")
+    print(f"  Total participants: {len(participants)}")
+    print(f"  Successful: {successful}")
+    print(f"  Failed: {failed}")
+    print(f"  Output directory: {output_dir}")
+    print(f"{'='*60}\n")
+
+    return results
+
 
 if __name__ == "__main__":
     input_file = "/Users/pawelmanczak/mgr sem 2/masters thesis/data/processed/GraphNeuralNetwork_cleaned.rdf"
+    output_dir = "/Users/pawelmanczak/mgr sem 2/masters thesis/data/processed"
 
     print("\n" + "="*60)
     print("RDF GRAPH FILTER - Select participant and video")
     print("="*60)
+    print("\nUsage:")
+    print("  python rdf_filter_flexible.py [participant] [video]")
+    print("  python rdf_filter_flexible.py all [video]    # Generate for all participants")
+    print("  python rdf_filter_flexible.py list           # List available combinations")
+    print("\nExamples:")
+    print("  python rdf_filter_flexible.py 31 10")
+    print("  python rdf_filter_flexible.py 5 3")
+    print("  python rdf_filter_flexible.py all 5          # Generate for all participants, video 5")
+    print("  python rdf_filter_flexible.py list")
 
+    # Check command line arguments
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "list":
+            list_available_combinations(input_file)
+            sys.exit(0)
+        elif sys.argv[1] == "all" and len(sys.argv) > 2:
+            # Generate for all participants for a specific video
+            video = int(sys.argv[2])
+            results = generate_all_participants_for_video(input_file, output_dir, video)
+            sys.exit(0)
+        elif len(sys.argv) > 2:
+            # Single participant and video
+            participant = int(sys.argv[1])
+            video = int(sys.argv[2])
+            output_file = f"{output_dir}/GraphNeuralNetwork_P{participant}V{video}.rdf"
+            result = extract_subgraph(input_file, output_file, participant, video)
+            if result is None:
+                sys.exit(1)
+            print(f"File saved: {output_file}")
+            sys.exit(0)
+
+    # Default behavior - list combinations
     list_available_combinations(input_file)
 
+    # Default example - single participant
     participant = 20
     video = 5
-
-    output_file = f"/Users/pawelmanczak/mgr sem 2/masters thesis/data/processed/GraphNeuralNetwork_P{participant}V{video}.rdf"
-
+    output_file = f"{output_dir}/GraphNeuralNetwork_P{participant}V{video}.rdf"
     result = extract_subgraph(input_file, output_file, participant, video)
 
     if result is None:
         sys.exit(1)
 
     print(f"File saved: {output_file}")
+    print(f"\nTo analyze the data, use:")
+    print(f"  from rdflib import Graph")
+    print(f"  g = Graph()")
+    print(f"  g.parse('data/processed/GraphNeuralNetwork_P{participant}V{video}.rdf')")
 
