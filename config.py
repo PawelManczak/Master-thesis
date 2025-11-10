@@ -19,8 +19,12 @@ REPORTS_DIR = OUTPUT_DIR / "reports"
 
 # Data files
 RDF_FILE = RAW_DATA_DIR / "GraphNeuralNetwork.rdf"
+PROCESSED_RDF_FILE = PROCESSED_DATA_DIR / "GraphNeuralNetwork_cleaned.rdf"
 HTML_INDEX_FILE = RAW_DATA_DIR / "Index of _datasets_GraphNeuralNetwork.html"
 CSV_DATA_DIR = PROCESSED_DATA_DIR / "csv_data"
+INTERVALS_DATA_DIR = CSV_DATA_DIR / "intervals"
+MERGED_DATA_DIR = CSV_DATA_DIR / "merged"
+RDF_DATA_DIR = PROCESSED_DATA_DIR / "rdf"
 
 # Analysis settings
 EMOTIONS = ['anger', 'disgust', 'fear', 'happiness', 'neutral', 'sadness', 'surprise']
