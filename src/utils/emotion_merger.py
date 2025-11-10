@@ -18,7 +18,7 @@ class EmotionMerger:
         os.makedirs(self.output_dir, exist_ok=True)
 
     def get_emotion_files(self, participant: str, video: str, method: str, variant: str = "") -> Dict[str, str]:
-        """Find all emotion files for a specific participant/video/method/variant"""
+        """Find all emotion files for a specific participant/video/method/variant in subdirectories"""
         emotion_files = {}
 
         if variant:
@@ -27,18 +27,29 @@ class EmotionMerger:
             # Match files without GTE02 or LE02 suffix
             pattern = f"ts{method}P{participant}V{video}([a-z]+)\\.csv"
 
-        for filename in os.listdir(self.csv_dir):
-            match = re.match(pattern, filename)
-            if match:
-                emotion_part = match.group(1)
+        if method == 'FR':
+            search_dir = os.path.join(self.csv_dir, 'extracted', 'FR')
+        elif method == 'Exp3':
+            search_dir = os.path.join(self.csv_dir, 'extracted', 'Exp3')
+        else:
+            search_dir = self.csv_dir
 
-                # For non-variant files, make sure they don't have GTE02/LE02
-                if not variant:
-                    if 'GTE02' in filename or 'LE02' in filename:
-                        continue
+        if not os.path.exists(search_dir):
+            search_dir = self.csv_dir
 
-                if emotion_part:
-                    emotion_files[emotion_part] = os.path.join(self.csv_dir, filename)
+        if os.path.exists(search_dir):
+            for filename in os.listdir(search_dir):
+                match = re.match(pattern, filename)
+                if match:
+                    emotion_part = match.group(1)
+
+                    # For non-variant files, make sure they don't have GTE02/LE02
+                    if not variant:
+                        if 'GTE02' in filename or 'LE02' in filename:
+                            continue
+
+                    if emotion_part:
+                        emotion_files[emotion_part] = os.path.join(search_dir, filename)
 
         return emotion_files
 
@@ -78,16 +89,40 @@ class EmotionMerger:
         return df_merged
 
     def find_all_combinations(self) -> List[tuple]:
-        """Find all unique participant/video/method combinations"""
+        """Find all unique participant/video/method combinations in main and subdirectories"""
         combinations = set()
 
-        for filename in os.listdir(self.csv_dir):
-            match = re.match(r'ts(FR|Exp3)P(\d+)V(\d+)', filename)
-            if match:
-                method = match.group(1)
-                participant = match.group(2)
-                video = match.group(3)
-                combinations.add((participant, video, method))
+        # Check main directory
+        if os.path.exists(self.csv_dir):
+            for filename in os.listdir(self.csv_dir):
+                match = re.match(r'ts(FR|Exp3)P(\d+)V(\d+)', filename)
+                if match:
+                    method = match.group(1)
+                    participant = match.group(2)
+                    video = match.group(3)
+                    combinations.add((participant, video, method))
+
+        # Check extracted/FR subdirectory
+        fr_dir = os.path.join(self.csv_dir, 'extracted', 'FR')
+        if os.path.exists(fr_dir):
+            for filename in os.listdir(fr_dir):
+                match = re.match(r'ts(FR|Exp3)P(\d+)V(\d+)', filename)
+                if match:
+                    method = match.group(1)
+                    participant = match.group(2)
+                    video = match.group(3)
+                    combinations.add((participant, video, method))
+
+        # Check extracted/Exp3 subdirectory
+        exp3_dir = os.path.join(self.csv_dir, 'extracted', 'Exp3')
+        if os.path.exists(exp3_dir):
+            for filename in os.listdir(exp3_dir):
+                match = re.match(r'ts(FR|Exp3)P(\d+)V(\d+)', filename)
+                if match:
+                    method = match.group(1)
+                    participant = match.group(2)
+                    video = match.group(3)
+                    combinations.add((participant, video, method))
 
         return sorted(combinations)
 
