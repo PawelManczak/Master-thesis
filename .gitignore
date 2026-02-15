@@ -53,3 +53,4 @@ output/*
 csv_analysis_*.png
 csv_analysis_*.txt
 
+/second part/data/
