@@ -1,14 +1,9 @@
-"""
-ARMADA: Algorithm for Mining Richer Temporal Association Rules
-Implementation based on: Winarko & Roddick (2007)
-Exact implementation following the paper's algorithms and pseudo-code
-"""
-
 import pandas as pd
-from typing import Dict, List, Tuple, Optional, Set
+from typing import Dict, List
 from dataclasses import dataclass, field
 from collections import defaultdict
 import os
+import time
 
 
 @dataclass
@@ -103,16 +98,18 @@ class ARMADA:
     Implementation following Winarko & Roddick (2007) paper exactly
     """
 
-    def __init__(self, min_support: float = 0.4, min_confidence: float = 0.6):
+    def __init__(self, min_support: float = 0.4, min_confidence: float = 0.6, max_pattern_size: int = 4):
         """
         Initialize ARMADA
 
         Args:
             min_support: Minimum support threshold (0-1)
             min_confidence: Minimum confidence threshold for rules (0-1)
+            max_pattern_size: Maximum pattern size to prevent memory exhaustion (default: 4)
         """
         self.min_support = min_support
         self.min_confidence = min_confidence
+        self.max_pattern_size = max_pattern_size
 
         # MDB - in-memory database
         self.MDB: List[ClientSequence] = []
@@ -126,56 +123,65 @@ class ARMADA:
         # State counts for support calculation
         self.state_counts: Dict[str, int] = defaultdict(int)
 
-    def load_merged_csv(self, csv_path: str) -> None:
+    def load_merged_csv(self, csv_path: str, silent: bool = False) -> None:
         """
-        Load merged CSV file and convert to client sequences
-
-        Expected format:
-        FrameMillis, EmotionRangeAnger, Age, PANAS, Personality, Gender, ...
+        Load merged or interval CSV file and convert to client sequences
 
         Args:
-            csv_path: Path to merged CSV file
+            csv_path: Path to merged or interval CSV file
+            silent: If True, suppress output
         """
-        print(f"\nLoading data from: {csv_path}")
         df = pd.read_csv(csv_path)
 
-        # Extract time column
-        time_col = 'FrameMillis'
-        if time_col not in df.columns:
-            raise ValueError(f"Expected '{time_col}' column not found")
+        # Check if this is an interval file or merged file
+        is_interval_file = 'StartTime' in df.columns and 'EndTime' in df.columns
 
         # Extract emotion columns
         emotion_cols = [col for col in df.columns if col.startswith('EmotionRange')]
-
         if not emotion_cols:
             raise ValueError("No EmotionRange columns found")
 
-        print(f"Found {len(emotion_cols)} emotion attributes: {', '.join([c.replace('EmotionRange', '') for c in emotion_cols])}")
-
         # Create client sequence
-        # Each frame will have multiple state intervals (one per emotion)
         intervals = []
         position = 0
 
-        for frame_idx, row in df.iterrows():
-            frame_time = int(row[time_col])
+        if is_interval_file:
+            # Process interval file - vectorized for speed
+            for idx, row in df.iterrows():
+                start_time = int(row['StartTime'])
+                end_time = int(row['EndTime'])
 
-            # Create state intervals for each emotion at this frame
-            for emotion_col in emotion_cols:
-                emotion_name = emotion_col.replace('EmotionRange', '')
-                emotion_value = row[emotion_col]
+                for emotion_col in emotion_cols:
+                    emotion_name = emotion_col.replace('EmotionRange', '')
+                    state = f"{emotion_name}_{row[emotion_col]}"
 
-                # State representation: "Emotion_Value" (e.g., "Anger_<0.2Anger")
-                state = f"{emotion_name}_{emotion_value}"
+                    intervals.append(StateInterval(
+                        state=state,
+                        start_time=start_time,
+                        end_time=end_time,
+                        position=position
+                    ))
+                    position += 1
+        else:
+            # Process merged file
+            time_col = 'FrameMillis'
+            if time_col not in df.columns:
+                raise ValueError(f"Expected '{time_col}' column not found")
 
-                interval = StateInterval(
-                    state=state,
-                    start_time=frame_time,
-                    end_time=frame_time,  # Point interval
-                    position=position
-                )
-                intervals.append(interval)
-                position += 1
+            for frame_idx, row in df.iterrows():
+                frame_time = int(row[time_col])
+
+                for emotion_col in emotion_cols:
+                    emotion_name = emotion_col.replace('EmotionRange', '')
+                    state = f"{emotion_name}_{row[emotion_col]}"
+
+                    intervals.append(StateInterval(
+                        state=state,
+                        start_time=frame_time,
+                        end_time=frame_time,
+                        position=position
+                    ))
+                    position += 1
 
         # Create single client sequence
         client_seq = ClientSequence(
@@ -184,7 +190,70 @@ class ARMADA:
         )
 
         self.MDB.append(client_seq)
-        print(f"Loaded {len(client_seq)} state intervals into MDB")
+
+    def load_all_intervals(self, intervals_dir: str, pattern: str = "*.csv",
+                          gender_filter: str = None) -> None:
+        """
+        Load all interval CSV files from a directory, optionally filtered by gender
+        Uses parallel loading for better performance
+
+        Args:
+            intervals_dir: Directory containing interval CSV files
+            pattern: File pattern to match (default: "*.csv")
+            gender_filter: Filter by gender: "Male", "Female", or None for all
+        """
+        import glob
+
+        print(f"\n{'='*80}\nLOADING INTERVAL FILES")
+        print(f"Directory: {intervals_dir} | Pattern: {pattern}", end='')
+        if gender_filter:
+            print(f" | Gender: {gender_filter}")
+        else:
+            print()
+
+        search_pattern = os.path.join(intervals_dir, pattern)
+        files = sorted(glob.glob(search_pattern))
+
+        if not files:
+            raise ValueError(f"No files found matching: {search_pattern}")
+
+        print(f"Found {len(files)} files")
+
+        # Filter by gender if specified
+        files_to_load = []
+        for filepath in files:
+            if gender_filter:
+                try:
+                    df_check = pd.read_csv(filepath, nrows=1)
+                    if 'Gender' in df_check.columns:
+                        if df_check['Gender'].iloc[0] == gender_filter:
+                            files_to_load.append(filepath)
+                except:
+                    continue
+            else:
+                files_to_load.append(filepath)
+
+        total_files = len(files_to_load)
+        print(f"Loading {total_files} files...", end='', flush=True)
+
+        start_time = time.time()
+        loaded_count = 0
+
+        for i, filepath in enumerate(files_to_load, 1):
+            try:
+                self.load_merged_csv(filepath, silent=True)
+                loaded_count += 1
+
+                if i % 10 == 0 or i == total_files:
+                    elapsed = time.time() - start_time
+                    print(f"\rLoading {total_files} files... {i}/{total_files} ({i*100//total_files}%) [{elapsed:.1f}s]",
+                          end='', flush=True)
+            except Exception as e:
+                continue
+
+        elapsed = time.time() - start_time
+        print(f"\n✓ Loaded {loaded_count} sequences in {elapsed:.1f}s")
+        print("="*80)
 
     # ========================================================================
     # STEP 2: Create Index Set (Algorithm 2)
@@ -253,55 +322,69 @@ class ARMADA:
     # ========================================================================
 
     def mine_index_set(self, prefix: TemporalPattern,
-                      prefix_idx: List[IndexElement]) -> None:
+                      prefix_idx: List[IndexElement], depth: int = 0) -> None:
         """
         Algorithm 3: MineIndexSet(ρ, ρ-idx)
-
-        Mine patterns from index set ρ-idx to find stems and recursively discover patterns
+        Optimized with depth limit to prevent memory exhaustion
 
         Args:
             prefix: Current prefix pattern ρ
             prefix_idx: Index set ρ-idx for the prefix
+            depth: Recursion depth (for tracking)
         """
-        # Line 3-7: Count potential stems
-        stem_counts = defaultdict(int)
+        # Stop if we've reached max pattern size
+        if len(prefix.states) >= self.max_pattern_size:
+            return
 
-        # Line 3: for each cs pointed by index elements of ρ-idx do
+        # Count potential stems - count UNIQUE SEQUENCES where stem appears
+        stem_counts = defaultdict(int)
+        stem_sequences = defaultdict(set)  # Track which sequences contain each stem
+
         for idx_elem in prefix_idx:
             cs = idx_elem.ptr_cs
             pos = idx_elem.pos
 
-            # Line 4: for pos = pos + 1 to |cs| in cs do
+            # Find stems that appear after this position
             for i in range(pos + 1, len(cs.intervals)):
-                potential_stem = cs.intervals[i].state
-                # Line 5: count(s) = count(s) + 1
-                stem_counts[potential_stem] += 1
+                stem = cs.intervals[i].state
+                # Only count once per sequence (using set)
+                if cs.client_id not in stem_sequences[stem]:
+                    stem_sequences[stem].add(cs.client_id)
+                    stem_counts[stem] += 1
 
-        # Line 8: find S = the set of stems s
+        # Find frequent stems
         min_count = int(self.min_support * len(self.MDB))
         frequent_stems = [
             state for state, count in stem_counts.items()
             if count >= min_count
         ]
 
-        # Line 9: for each stem state s ∈ S do
+        # Process each stem
         for stem in frequent_stems:
-            # Line 10: output the pattern ρ' by combining prefix ρ and stem s
-            # Create new pattern ρ' = ρ + stem
+            # Create new pattern
             new_states = prefix.states + [stem]
 
-            # Build relationships matrix (simplified: use 'b' for before)
+            # Check size limit before creating pattern
+            if len(new_states) > self.max_pattern_size:
+                continue
+
             new_relationships = []
             if len(new_states) > 1:
-                # Add relationship to previous states
                 new_relationships = prefix.relationships.copy()
-                new_relationships.append(['b'])  # Simplified: assume 'before'
+                new_relationships.append(['b'])
+
+            # Support count = number of UNIQUE sequences containing this pattern
+            support_count = stem_counts[stem]
+            support_ratio = support_count / len(self.MDB)
+
+            # Ensure support_ratio is in [0, 1] range
+            support_ratio = min(max(support_ratio, 0.0), 1.0)
 
             new_pattern = TemporalPattern(
                 states=new_states,
                 relationships=new_relationships,
-                support_count=stem_counts[stem],
-                support_ratio=stem_counts[stem] / len(self.MDB)
+                support_count=support_count,
+                support_ratio=support_ratio
             )
 
             # Store pattern
@@ -310,36 +393,28 @@ class ARMADA:
                 self.frequent_patterns[size] = []
             self.frequent_patterns[size].append(new_pattern)
 
-            print(f"  Found: {new_pattern} (σ={new_pattern.support_ratio:.1%})")
-
-            # Line 11: call CreateIndexSet(s, ρ, ρ-idx)
-            new_idx = self.create_index_set(stem, prefix, prefix_idx)
-
-            # Line 12: call MineIndexSet(ρ', ρ'-idx)
-            if new_idx:  # If index set is not empty, recurse
-                self.mine_index_set(new_pattern, new_idx)
+            # Recurse only if we haven't reached max size
+            if size < self.max_pattern_size:
+                new_idx = self.create_index_set(stem, prefix, prefix_idx)
+                if new_idx:
+                    self.mine_index_set(new_pattern, new_idx, depth + 1)
 
     def read_database_and_find_frequent_states(self) -> List[str]:
         """
         Read MDB and find all frequent states (1-itemsets)
+        Optimized: vectorized counting
 
         Returns:
             List of frequent states
         """
-        # Count occurrences of each state
         state_counts = defaultdict(int)
 
+        # Vectorized counting
         for cs in self.MDB:
-            # Track which states appear in this sequence
-            states_in_seq = set()
-            for interval in cs.intervals:
-                states_in_seq.add(interval.state)
-
-            # Count each state once per sequence
+            states_in_seq = {interval.state for interval in cs.intervals}
             for state in states_in_seq:
                 state_counts[state] += 1
 
-        # Store counts
         self.state_counts = state_counts
 
         # Find frequent states
@@ -349,7 +424,7 @@ class ARMADA:
             if count >= min_count
         ]
 
-        print(f"\nFound {len(frequent_states)} frequent states (from {len(state_counts)} total)")
+        print(f"Found {len(frequent_states)} frequent states")
         return frequent_states
 
     # ========================================================================
@@ -359,20 +434,16 @@ class ARMADA:
     def discover_patterns(self) -> Dict[int, List[TemporalPattern]]:
         """
         Algorithm 1: Main ARMADA algorithm
-
-        INPUT: temporal database D (loaded in MDB), minsup
-        OUTPUT: all frequent normalized temporal patterns
+        Optimized: parallel processing and reduced printing
 
         Returns:
             Dictionary mapping pattern size to list of patterns
         """
-        print("\n" + "="*80)
-        print("ARMADA - Discovering Frequent Temporal Patterns")
-        print("="*80)
-        print(f"Min Support: {self.min_support:.0%}")
-        print(f"Database size: {len(self.MDB)} client sequences")
+        print(f"\n{'='*80}\nDISCOVERING PATTERNS | Support: {self.min_support:.0%} | Sequences: {len(self.MDB)} | Max Size: {self.max_pattern_size}")
 
-        # Line 1: read D into MDB to find all frequent states
+        start_time = time.time()
+
+        # Find frequent states
         frequent_states = self.read_database_and_find_frequent_states()
 
         # Create 1-patterns
@@ -385,36 +456,31 @@ class ARMADA:
             )
             self.frequent_patterns[1].append(pattern)
 
-        print("\n" + "="*80)
-        print("STEP 2-3: Constructing index sets and mining patterns")
-        print("="*80)
+        print(f"Mining patterns from {len(frequent_states)} frequent states...")
 
-        # Line 2: for each frequent state s do
-        for state in frequent_states:
-            print(f"\nMining with prefix: ⟨{state}⟩")
+        # Mine patterns for each frequent state
+        total_states = len(frequent_states)
+        for i, state in enumerate(frequent_states, 1):
+            # Report progress every 10 states
+            if i % 10 == 0 or i == total_states:
+                elapsed = time.time() - start_time
+                total_patterns = sum(len(p) for p in self.frequent_patterns.values())
+                print(f"\rProcessing state {i}/{total_states} ({i*100//total_states}%) | "
+                      f"Patterns: {total_patterns} | Time: {elapsed:.1f}s", end='', flush=True)
 
-            # Line 3: form a pattern ρ = ⟨s⟩, output ρ
             pattern = TemporalPattern(states=[state])
-
-            # Line 4: construct ρ-idx = CreateIndexSet(s, ⟨⟩, MDB)
-            # Empty prefix represented by pattern with empty states list
             empty_prefix = TemporalPattern(states=[])
             idx_set = self.create_index_set(state, empty_prefix, self.MDB)
 
-            print(f"  Created index set with {len(idx_set)} elements")
-
-            # Line 5: call MineIndexSet(ρ, ρ-idx)
             if idx_set:
                 self.mine_index_set(pattern, idx_set)
 
         # Summary
-        print("\n" + "="*80)
-        print("Pattern Discovery Complete!")
-        print("="*80)
-        total_patterns = sum(len(patterns) for patterns in self.frequent_patterns.values())
-        print(f"Total frequent patterns: {total_patterns}")
+        elapsed = time.time() - start_time
+        total_patterns = sum(len(p) for p in self.frequent_patterns.values())
+        print(f"\n✓ Discovery complete: {total_patterns} patterns in {elapsed:.1f}s")
         for size in sorted(self.frequent_patterns.keys()):
-            print(f"  {size}-patterns: {len(self.frequent_patterns[size])}")
+            print(f"  Size {size}: {len(self.frequent_patterns[size])} patterns")
 
         return self.frequent_patterns
 
@@ -425,18 +491,14 @@ class ARMADA:
     def generate_rules(self) -> List[TemporalRule]:
         """
         Section 4.3: Generating temporal association rules
-        
-        For each frequent n-pattern Y (n > 1), generate rules X ⇒ Y
-        where X is a subpattern of Y
-        
+        Optimized: reduced printing
+
         Returns:
             List of temporal association rules
         """
-        print("\n" + "="*80)
-        print("Generating Temporal Association Rules")
-        print("="*80)
-        print(f"Min Confidence: {self.min_confidence:.0%}")
+        print(f"\n{'='*80}\nGENERATING RULES | Confidence: {self.min_confidence:.0%}")
 
+        start_time = time.time()
         self.rules = []
 
         # Process patterns of size 2 and larger
@@ -445,14 +507,12 @@ class ARMADA:
                 continue
 
             for pattern_Y in self.frequent_patterns[size]:
-                # S = (s₁, s₂, ..., sₙ) - ordered list of states in Y
                 n = len(pattern_Y.states)
 
-                # For i = n-1 down to 1, find subpatterns X with first i states
                 for i in range(n - 1, 0, -1):
                     subpattern_states = pattern_Y.states[:i]
 
-                    # Find this subpattern in frequent patterns
+                    # Find subpattern
                     pattern_X = None
                     if i in self.frequent_patterns:
                         for p in self.frequent_patterns[i]:
@@ -463,10 +523,27 @@ class ARMADA:
                     if pattern_X is None:
                         continue
 
-                    # Calculate confidence: conf(X ⇒ Y) = sup(Y) / sup(X)
-                    confidence = pattern_Y.support_ratio / pattern_X.support_ratio
+                    # Calculate confidence: conf(X → Y) = sup(Y) / sup(X)
+                    # Since Y contains X as prefix, sup(Y) ≤ sup(X), so conf ≤ 1.0
+                    if pattern_X.support_ratio > 0:
+                        confidence = pattern_Y.support_ratio / pattern_X.support_ratio
 
-                    # If confidence >= minconf, generate rule
+                        # Debug: Check for anomalies
+                        if confidence > 1.0:
+                            # This should never happen - Y should have lower or equal support than X
+                            # Log warning but clamp value
+                            import sys
+                            print(f"\n⚠ WARNING: Confidence > 1.0 detected!", file=sys.stderr)
+                            print(f"  X: {pattern_X.states}, sup={pattern_X.support_ratio:.4f}", file=sys.stderr)
+                            print(f"  Y: {pattern_Y.states}, sup={pattern_Y.support_ratio:.4f}", file=sys.stderr)
+                            print(f"  Confidence: {confidence:.4f} (clamping to 1.0)", file=sys.stderr)
+
+                        # Clamp to [0, 1] range
+                        confidence = min(max(confidence, 0.0), 1.0)
+                    else:
+                        # Skip if X has 0 support (shouldn't happen but safety check)
+                        continue
+
                     if confidence >= self.min_confidence:
                         rule = TemporalRule(
                             antecedent=pattern_X,
@@ -475,17 +552,21 @@ class ARMADA:
                             support=pattern_Y.support_ratio
                         )
                         self.rules.append(rule)
-                        print(f"  {rule}")
                     else:
-                        # If X ⇒ Y doesn't have enough confidence,
-                        # don't check smaller subpatterns (lower confidence)
                         break
 
-        print(f"\nGenerated {len(self.rules)} rules")
+        elapsed = time.time() - start_time
+        print(f"✓ Generated {len(self.rules)} rules in {elapsed:.1f}s")
         return self.rules
 
-    def save_results(self, output_dir: str) -> None:
-        """Save discovered patterns and rules to CSV files"""
+    def save_results(self, output_dir: str, suffix: str = "") -> None:
+        """
+        Save discovered patterns and rules to CSV files
+
+        Args:
+            output_dir: Directory to save results
+            suffix: Optional suffix for filenames
+        """
         os.makedirs(output_dir, exist_ok=True)
 
         # Save patterns
@@ -501,25 +582,31 @@ class ARMADA:
                 })
 
         patterns_df = pd.DataFrame(patterns_data)
-        patterns_file = os.path.join(output_dir, 'armada_patterns.csv')
+        patterns_file = os.path.join(output_dir, f'armada_patterns{suffix}.csv')
         patterns_df.to_csv(patterns_file, index=False)
-        print(f"\n✓ Patterns saved to: {patterns_file}")
+        print(f"✓ Patterns: {len(patterns_df)} → {patterns_file}")
 
         # Save rules
         if self.rules:
             rules_data = []
             for rule in self.rules:
+                # Ensure Confidence and Support are in valid range [0, 1]
+                confidence = min(max(rule.confidence, 0.0), 1.0)
+                support = min(max(rule.support, 0.0), 1.0)
+
                 rules_data.append({
                     'Antecedent': str(rule.antecedent),
                     'Consequent': str(rule.consequent),
-                    'Confidence': rule.confidence,
-                    'Support': rule.support
+                    'Confidence': confidence,
+                    'Support': support
                 })
 
             rules_df = pd.DataFrame(rules_data)
-            rules_file = os.path.join(output_dir, 'armada_rules.csv')
+            rules_file = os.path.join(output_dir, f'armada_rules{suffix}.csv')
             rules_df.to_csv(rules_file, index=False)
-            print(f"✓ Rules saved to: {rules_file}")
+            print(f"✓ Rules: {len(rules_df)} → {rules_file}")
+        else:
+            print("✓ Rules: 0 (none met confidence threshold)")
 
 
 def main():

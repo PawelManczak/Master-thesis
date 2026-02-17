@@ -77,18 +77,7 @@ class CSVExtractor:
             return None
 
     def save_processed_csv(self, ts_id: str, df: pd.DataFrame) -> str:
-        # Determine subdirectory based on time series ID
-        if 'FR' in ts_id:
-            subdir = os.path.join(self.output_dir, 'extracted', 'FR')
-        elif 'Exp3' in ts_id:
-            subdir = os.path.join(self.output_dir, 'extracted', 'Exp3')
-        else:
-            subdir = self.output_dir
-
-        # Create subdirectory if it doesn't exist
-        os.makedirs(subdir, exist_ok=True)
-
-        output_path = os.path.join(subdir, f"{ts_id}.csv")
+        output_path = os.path.join(self.output_dir, f"{ts_id}.csv")
         df.to_csv(output_path, index=False)
         print(f"  Saved: {output_path}")
         return output_path
@@ -112,15 +101,8 @@ class CSVExtractor:
         error_count = 0
 
         for ts_id, metadata in filtered_metadata.items():
-            # Determine expected output path based on subdirectory
-            if 'FR' in ts_id:
-                subdir = os.path.join(self.output_dir, 'extracted', 'FR')
-            elif 'Exp3' in ts_id:
-                subdir = os.path.join(self.output_dir, 'extracted', 'Exp3')
-            else:
-                subdir = self.output_dir
 
-            output_path = os.path.join(subdir, f"{ts_id}.csv")
+            output_path = os.path.join(self.output_dir, f"{ts_id}.csv")
             if skip_existing and os.path.exists(output_path):
                 print(f"  Skipped: File already exists")
                 self.processed_files[ts_id] = output_path

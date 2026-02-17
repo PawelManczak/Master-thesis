@@ -93,7 +93,7 @@ class ContextEnricher:
         return df
 
     def enrich_all_csvs(self, csv_dir: str, output_dir: Optional[str] = None):
-        """Enrich all CSV files in directory with participant context, including subdirectories"""
+        """Enrich all CSV files in directory with participant context"""
         if not self.participant_context:
             self.extract_all_participants()
 
@@ -108,32 +108,10 @@ class ContextEnricher:
         print(f"Output directory: {output_dir}")
         print(f"{'='*60}\n")
 
-        # Collect CSV files from main directory and subdirectories
-        csv_files_to_process = []
-
-        # Check main directory
-        if os.path.exists(csv_dir):
-            for f in os.listdir(csv_dir):
-                if f.endswith('.csv') and f.startswith('ts'):
-                    csv_files_to_process.append((csv_dir, f))
-
-        # Check extracted/FR subdirectory
-        fr_dir = os.path.join(csv_dir, 'extracted', 'FR')
-        if os.path.exists(fr_dir):
-            for f in os.listdir(fr_dir):
-                if f.endswith('.csv') and f.startswith('ts'):
-                    csv_files_to_process.append((fr_dir, f))
-
-        # Check extracted/Exp3 subdirectory
-        exp3_dir = os.path.join(csv_dir, 'extracted', 'Exp3')
-        if os.path.exists(exp3_dir):
-            for f in os.listdir(exp3_dir):
-                if f.endswith('.csv') and f.startswith('ts'):
-                    csv_files_to_process.append((exp3_dir, f))
-
+        csv_files = [f for f in os.listdir(csv_dir) if f.endswith('.csv') and f.startswith('ts')]
         enriched_count = 0
 
-        for file_dir, csv_file in csv_files_to_process:
+        for csv_file in csv_files:
             import re
             match = re.search(r'P(\d+)V\d+', csv_file)
             if not match:
@@ -141,9 +119,9 @@ class ContextEnricher:
 
             participant_id = match.group(1)
 
-            print(f"Processing: {csv_file} (in {os.path.basename(file_dir)})")
-            csv_path = os.path.join(file_dir, csv_file)
-            output_path = os.path.join(file_dir, csv_file)  # Save in same directory
+            print(f"Processing: {csv_file}")
+            csv_path = os.path.join(csv_dir, csv_file)
+            output_path = os.path.join(output_dir, csv_file)
 
             df = self.enrich_csv(csv_path, participant_id, output_path)
 
@@ -156,7 +134,7 @@ class ContextEnricher:
         print(f"Enrichment complete!")
         print(f"{'='*60}")
         print(f"  Enriched: {enriched_count} files")
-        print(f"  Total: {len(csv_files_to_process)} files")
+        print(f"  Total: {len(csv_files)} files")
 
 
 def main():
