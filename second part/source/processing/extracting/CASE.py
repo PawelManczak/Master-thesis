@@ -20,17 +20,15 @@ Transformacje (na podstawie s03_v2_interTransformData.m):
 Output: seconds, arousal, valence, eda (gsr), hr (z ECG), temp (skt) + HRV metrics
 """
 
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from scipy import signal as scipy_signal
 import warnings
-warnings.filterwarnings('ignore')
-
-# Import wspólnych funkcji HRV
+from pathlib import Path
+import numpy as np
+import pandas as pd
 from hrv_utils import compute_hrv_from_ecg, antialiasing_filter
 
-# Ścieżki
+warnings.filterwarnings('ignore')
+
+
 BASE_DIR = Path(__file__).parent.parent.parent.parent  # extracting -> processing -> source -> second part
 RAW_DIR = BASE_DIR / "data" / "CASE" / "raw" / "case_dataset"
 METADATA_DIR = BASE_DIR / "data" / "CASE" / "raw" / "case_dataset-master" / "metadata"
