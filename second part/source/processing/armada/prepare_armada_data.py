@@ -65,9 +65,27 @@ DISCRETIZE_THRESHOLDS = {
     'high': (0.75, 1.0)
 }
 
+# Progi dyskretyzacji dla EDA (znormalizowanego osobniczo do [0,1])
+# Oparte na literaturze EDA i emocji (Boucsein, Venables & Christie, Horvers et al., Greco et al.)
+# EDA jest markerem pobudzenia współczulnego - normalizacja osobnicza wymagana
+#
+# Interpretacja:
+#   low (0.00-0.33): niski SCL, mała liczba SCR/min (1-3 SCR/min), relaks/senność
+#   medium (0.33-0.66): typowe czuwanie, lekki stres, sytuacje edukacyjne
+#   high (0.66-1.00): zwiększona aktywność współczulna, wysoka częstotliwość i amplituda SCR
+EDA_THRESHOLDS = {
+    'low': (0, 0.33),
+    'medium': (0.33, 0.66),
+    'high': (0.66, 1.0)
+}
+
 # Zmienne fizjologiczne do dyskretyzacji (użyjemy percentyli)
 # Zaktualizowane nazwy zgodnie z nową metodologią "Global Processing, Local Aggregation"
 PHYSIO_VARIABLES = ['eda_mean', 'hr_mean', 'temp_mean', 'hrv_rmssd', 'hrv_sdnn']
+
+# Zmienne wymagające normalizacji osobniczej (min-max per uczestnik)
+# zamiast tercyli - zgodnie z zaleceniami psychofizjologicznymi (Birmingham EDA guide)
+PERSONAL_NORM_VARIABLES = ['eda_mean']
 
 # Mapowanie nazw kolumn na czytelne nazwy stanów
 VARIABLE_NAME_MAPPING = {
@@ -123,6 +141,38 @@ def compute_physio_thresholds(df: pd.DataFrame, variable: str) -> Dict[str, Tupl
         'medium': (p33, p67),
         'high': (p67, max_val + 0.001)
     }
+
+
+def normalize_personal_minmax(df: pd.DataFrame, variable: str) -> pd.Series:
+    """
+    Normalizacja osobnicza (min-max) dla zmiennej fizjologicznej.
+
+    Zgodnie z zaleceniami psychofizjologicznymi (Birmingham EDA guide):
+    EDA_norm = (EDA - EDA_min) / (EDA_max - EDA_min)
+
+    To jest wymagane dla EDA, bo poziom przewodnictwa jest silnie osobniczy.
+
+    Args:
+        df: DataFrame z danymi uczestnika
+        variable: nazwa zmiennej do normalizacji
+
+    Returns:
+        Series z wartościami znormalizowanymi do [0, 1]
+    """
+    values = df[variable].copy()
+    valid_values = values.dropna()
+
+    if len(valid_values) < 2:
+        return pd.Series([np.nan] * len(values), index=values.index)
+
+    min_val = valid_values.min()
+    max_val = valid_values.max()
+
+    if max_val - min_val < 1e-10:  # Unikaj dzielenia przez zero
+        return pd.Series([0.5] * len(values), index=values.index)
+
+    normalized = (values - min_val) / (max_val - min_val)
+    return normalized
 
 
 def extract_state_intervals(
@@ -252,17 +302,33 @@ def process_participant_data(
             iv['state'] = iv['state'].replace('valence_norm', 'valence')
         all_intervals.extend(intervals)
 
-    # Interwały dla zmiennych fizjologicznych (tercyle)
+    # Interwały dla zmiennych fizjologicznych
     for var in PHYSIO_VARIABLES:
         if var in df.columns:
-            thresholds = compute_physio_thresholds(df, var)
-            if thresholds is not None:
-                intervals = extract_state_intervals(df, var, thresholds)
+            # Sprawdź czy zmienna wymaga normalizacji osobniczej
+            if var in PERSONAL_NORM_VARIABLES:
+                # Normalizacja osobnicza (min-max) dla EDA
+                # Zgodnie z Birmingham EDA guide i literaturą (Boucsein, Horvers et al.)
+                df[f'{var}_norm'] = normalize_personal_minmax(df, var)
+
+                # Użyj stałych progów EDA_THRESHOLDS dla znormalizowanej zmiennej
+                intervals = extract_state_intervals(df, f'{var}_norm', EDA_THRESHOLDS)
+
                 # Mapuj nazwę zmiennej na czytelną nazwę stanu
                 readable_name = VARIABLE_NAME_MAPPING.get(var, var)
                 for iv in intervals:
-                    iv['state'] = iv['state'].replace(var, readable_name)
+                    iv['state'] = iv['state'].replace(f'{var}_norm', readable_name)
                 all_intervals.extend(intervals)
+            else:
+                # Dla pozostałych zmiennych użyj tercyli
+                thresholds = compute_physio_thresholds(df, var)
+                if thresholds is not None:
+                    intervals = extract_state_intervals(df, var, thresholds)
+                    # Mapuj nazwę zmiennej na czytelną nazwę stanu
+                    readable_name = VARIABLE_NAME_MAPPING.get(var, var)
+                    for iv in intervals:
+                        iv['state'] = iv['state'].replace(var, readable_name)
+                    all_intervals.extend(intervals)
 
     if not all_intervals:
         return None
