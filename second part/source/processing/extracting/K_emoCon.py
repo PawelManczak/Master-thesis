@@ -12,14 +12,36 @@ Sygnały E4:
 - TEMP: 4 Hz
 
 Samooceny: co 5 sekund
+
+METODOLOGIA PRZETWARZANIA (zgodna z publikacjami naukowymi):
+===========================================================================
+
+ZŁOTA ZASADA: "Global Processing, Local Aggregation"
+- Nie liczymy HR/metryk w małych oknach 5s (za mało danych)
+- Przetwarzamy cały sygnał, tworzymy ciągły przebieg, potem agregujemy
+
+AGREGACJA SYGNAŁÓW DO OKIEN 5-SEKUNDOWYCH:
+------------------------------------------
+| Sygnał | Problem ze średnią              | Funkcje agregujące                    |
+|--------|----------------------------------|---------------------------------------|
+| EDA    | Tracisz piki stresu (SCR)       | mean, std, max, peaks_count           |
+| BVP    | Średnia→0 (sygnał falowy!)      | std (amplituda), spectral_power       |
+| TEMP   | Zmienia się wolno, OK           | mean, slope (trend)                   |
+| ACC    | Średnia=grawitacja/pozycja      | mean (pozycja), std (ruch/drżenie)    |
+
+Output: seconds, arousal, valence, eda_mean, eda_std, eda_max, eda_peaks,
+        bvp_std, bvp_spectral_power, temp_mean, temp_slope, acc_*, hr_mean, hr_std, hrv_*
 """
 
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from scipy import signal as scipy_signal
+from scipy.stats import linregress
+from scipy.interpolate import interp1d
 
 # Import wspólnych funkcji BVP
-from bvp_utils import compute_metrics_from_ibi, compute_metrics_from_bvp
+from bvp_utils import compute_metrics_from_ibi
 
 # Ścieżki
 BASE_DIR = Path(__file__).parent.parent.parent.parent  # extracting -> processing -> source -> second part
@@ -27,6 +49,310 @@ RAW_DIR = BASE_DIR / "data" / "K-emoCon" / "raw"
 E4_DIR = RAW_DIR / "e4_data"
 ANNOTATIONS_DIR = RAW_DIR / "self_annotations"
 OUTPUT_DIR = BASE_DIR / "data" / "K-emoCon" / "processed"
+
+# Stałe częstotliwości próbkowania
+FS_EDA = 4.0    # Hz
+FS_HR = 1.0     # Hz
+FS_TEMP = 4.0   # Hz
+FS_BVP = 64.0   # Hz
+FS_ACC = 32.0   # Hz
+
+
+# =============================================================================
+# FUNKCJE AGREGUJĄCE DLA POSZCZEGÓLNYCH SYGNAŁÓW
+# =============================================================================
+
+def compute_eda_features(values: np.ndarray, fs: float) -> dict:
+    """
+    Oblicz cechy EDA w oknie czasowym.
+
+    EDA (Electrodermal Activity) - tracisz piki stresu przy zwykłej średniej!
+
+    Args:
+        values: wartości EDA w oknie
+        fs: częstotliwość próbkowania
+
+    Returns:
+        dict z: mean, std, max, peaks_count
+    """
+    if len(values) == 0:
+        return {'eda_mean': np.nan, 'eda_std': np.nan, 'eda_max': np.nan, 'eda_peaks': 0}
+
+    values = np.array(values)
+
+    # Detekcja pików SCR (Skin Conductance Response)
+    peaks_count = 0
+    if len(values) >= 3:
+        try:
+            # Piki muszą być wyższe niż 0.01 µS od baseline
+            threshold = np.mean(values) + 0.01
+            peaks, _ = scipy_signal.find_peaks(values, height=threshold, distance=int(fs * 0.5))
+            peaks_count = len(peaks)
+        except:
+            peaks_count = 0
+
+    return {
+        'eda_mean': np.mean(values),
+        'eda_std': np.std(values, ddof=1) if len(values) > 1 else 0.0,
+        'eda_max': np.max(values),
+        'eda_peaks': peaks_count
+    }
+
+
+def compute_bvp_features(values: np.ndarray, fs: float) -> dict:
+    """
+    Oblicz cechy BVP w oknie czasowym.
+
+    UWAGA: BVP to sygnał falowy - średnia dąży do 0!
+    NIE używaj średniej! Używaj std (amplituda) i spectral power.
+
+    Args:
+        values: wartości BVP w oknie
+        fs: częstotliwość próbkowania
+
+    Returns:
+        dict z: std (amplituda), spectral_power, peak_to_peak
+    """
+    if len(values) == 0:
+        return {
+            'bvp_std': np.nan,
+            'bvp_peak_to_peak': np.nan,
+            'bvp_spectral_power': np.nan
+        }
+
+    values = np.array(values)
+
+    # Std = miara amplitudy sygnału
+    bvp_std = np.std(values, ddof=1) if len(values) > 1 else 0.0
+
+    # Peak-to-peak amplitude
+    bvp_p2p = np.max(values) - np.min(values)
+
+    # Spectral power (energia sygnału)
+    spectral_power = np.nan
+    if len(values) >= 8:
+        try:
+            # Oblicz PSD metodą Welcha
+            freqs, psd = scipy_signal.welch(values, fs=fs, nperseg=min(len(values), 64))
+            # Moc w paśmie sercowym (0.5-4 Hz)
+            cardiac_band = (freqs >= 0.5) & (freqs <= 4.0)
+            if np.any(cardiac_band):
+                spectral_power = np.trapezoid(psd[cardiac_band], freqs[cardiac_band])
+        except:
+            pass
+
+    return {
+        'bvp_std': bvp_std,
+        'bvp_peak_to_peak': bvp_p2p,
+        'bvp_spectral_power': spectral_power
+    }
+
+
+def compute_temp_features(values: np.ndarray, timestamps: np.ndarray = None) -> dict:
+    """
+    Oblicz cechy temperatury w oknie czasowym.
+
+    Temperatura zmienia się wolno - średnia jest OK.
+    Dodatkowo: slope (trend) - czy rośnie czy spada.
+
+    Args:
+        values: wartości temperatury w oknie
+        timestamps: znaczniki czasowe (opcjonalne)
+
+    Returns:
+        dict z: mean, slope
+    """
+    if len(values) == 0:
+        return {'temp_mean': np.nan, 'temp_slope': np.nan}
+
+    values = np.array(values)
+    temp_mean = np.mean(values)
+
+    # Slope (trend liniowy)
+    temp_slope = 0.0
+    if len(values) >= 2:
+        try:
+            if timestamps is not None and len(timestamps) == len(values):
+                x = timestamps
+            else:
+                x = np.arange(len(values))
+            slope, _, _, _, _ = linregress(x, values)
+            temp_slope = slope
+        except:
+            temp_slope = 0.0
+
+    return {
+        'temp_mean': temp_mean,
+        'temp_slope': temp_slope
+    }
+
+
+def compute_acc_features(acc_x: np.ndarray, acc_y: np.ndarray, acc_z: np.ndarray) -> dict:
+    """
+    Oblicz cechy akcelerometru w oknie czasowym.
+
+    Mean = pozycja ciała (grawitacja)
+    Std = intensywność ruchu/drżenie
+
+    Args:
+        acc_x, acc_y, acc_z: wartości dla każdej osi
+
+    Returns:
+        dict z: mean i std dla każdej osi + magnitude
+    """
+    result = {}
+
+    for axis, values in [('x', acc_x), ('y', acc_y), ('z', acc_z)]:
+        if len(values) == 0:
+            result[f'acc_{axis}_mean'] = np.nan
+            result[f'acc_{axis}_std'] = np.nan
+        else:
+            values = np.array(values)
+            result[f'acc_{axis}_mean'] = np.mean(values)
+            result[f'acc_{axis}_std'] = np.std(values, ddof=1) if len(values) > 1 else 0.0
+
+    # Magnitude
+    if len(acc_x) > 0 and len(acc_y) > 0 and len(acc_z) > 0:
+        magnitude = np.sqrt(np.array(acc_x)**2 + np.array(acc_y)**2 + np.array(acc_z)**2)
+        result['acc_magnitude_mean'] = np.mean(magnitude)
+        result['acc_magnitude_std'] = np.std(magnitude, ddof=1) if len(magnitude) > 1 else 0.0
+    else:
+        result['acc_magnitude_mean'] = np.nan
+        result['acc_magnitude_std'] = np.nan
+
+    return result
+
+
+def compute_global_hr_from_ibi(ibi_df: pd.DataFrame, start_ts: float, max_time_ms: float) -> tuple:
+    """
+    GLOBAL PROCESSING: Oblicz ciągły przebieg HR z całego nagrania IBI.
+
+    Złota zasada: "Nie licz HR w oknie, uśredniaj HR w oknie"
+
+    Args:
+        ibi_df: DataFrame z kolumnami 'timestamp' i 'value' (IBI w ms)
+        start_ts: początkowy timestamp (ms)
+        max_time_ms: maksymalny czas (ms od start_ts)
+
+    Returns:
+        tuple (time_grid_ms, hr_timeseries) - czas w ms i HR w BPM
+    """
+    if ibi_df is None or len(ibi_df) < 2:
+        return np.array([]), np.array([])
+
+    # Pobierz timestamps i IBI
+    timestamps = ibi_df['timestamp'].values  # ms
+    ibi_values = ibi_df['value'].values  # IBI w ms
+
+    # Filtruj nieprawidłowe IBI (300-2000 ms = 30-200 BPM)
+    valid_mask = (ibi_values > 300) & (ibi_values < 2000)
+    timestamps = timestamps[valid_mask]
+    ibi_values = ibi_values[valid_mask]
+
+    if len(timestamps) < 2:
+        return np.array([]), np.array([])
+
+    # Oblicz chwilowe HR (BPM)
+    hr_values = 60000 / ibi_values
+
+    # Stwórz równomierną siatkę czasową (1 Hz = 1000 ms)
+    time_grid = np.arange(start_ts, start_ts + max_time_ms, 1000)
+
+    if len(time_grid) == 0:
+        return np.array([]), np.array([])
+
+    # Interpoluj HR do siatki czasowej
+    try:
+        f_interp = interp1d(timestamps, hr_values, kind='linear',
+                           bounds_error=False, fill_value=np.nan)
+        hr_timeseries = f_interp(time_grid)
+    except:
+        hr_timeseries = np.full(len(time_grid), np.nan)
+
+    return time_grid, hr_timeseries
+
+
+def compute_hr_window_features(time_grid: np.ndarray, hr_timeseries: np.ndarray,
+                                window_start_ms: float, window_end_ms: float) -> dict:
+    """
+    LOCAL AGGREGATION: Oblicz cechy HR w oknie czasowym z globalnego przebiegu.
+
+    Args:
+        time_grid: siatka czasowa (ms)
+        hr_timeseries: ciągły przebieg HR
+        window_start_ms: początek okna (ms)
+        window_end_ms: koniec okna (ms)
+
+    Returns:
+        dict z: hr_mean, hr_std
+    """
+    if len(hr_timeseries) == 0:
+        return {'hr_mean': np.nan, 'hr_std': np.nan}
+
+    # Znajdź wartości HR w oknie
+    mask = (time_grid >= window_start_ms) & (time_grid < window_end_ms)
+    hr_window = hr_timeseries[mask]
+
+    # Usuń NaN
+    hr_valid = hr_window[~np.isnan(hr_window)]
+
+    if len(hr_valid) == 0:
+        return {'hr_mean': np.nan, 'hr_std': np.nan}
+
+    return {
+        'hr_mean': np.mean(hr_valid),
+        'hr_std': np.std(hr_valid, ddof=1) if len(hr_valid) > 1 else 0.0
+    }
+
+
+def compute_ibi_window_features(ibi_df: pd.DataFrame, window_start_ms: float,
+                                 window_end_ms: float) -> dict:
+    """
+    Oblicz metryki HRV z IBI w oknie czasowym.
+
+    Args:
+        ibi_df: DataFrame z kolumnami 'timestamp' i 'value'
+        window_start_ms: początek okna (ms)
+        window_end_ms: koniec okna (ms)
+
+    Returns:
+        dict z metrykami HRV
+    """
+    if ibi_df is None or len(ibi_df) < 3:
+        return {
+            'hrv_sdnn': np.nan,
+            'hrv_rmssd': np.nan,
+            'hrv_pnn50': np.nan,
+            'hrv_lf_power': np.nan,
+            'hrv_hf_power': np.nan,
+            'hrv_lf_hf_ratio': np.nan
+        }
+
+    # Pobierz IBI w oknie
+    mask = (ibi_df['timestamp'] >= window_start_ms) & (ibi_df['timestamp'] < window_end_ms)
+    window_ibi = ibi_df.loc[mask, 'value'].values
+
+    if len(window_ibi) < 3:
+        return {
+            'hrv_sdnn': np.nan,
+            'hrv_rmssd': np.nan,
+            'hrv_pnn50': np.nan,
+            'hrv_lf_power': np.nan,
+            'hrv_hf_power': np.nan,
+            'hrv_lf_hf_ratio': np.nan
+        }
+
+    # Użyj funkcji z bvp_utils (IBI w ms)
+    metrics = compute_metrics_from_ibi(window_ibi, ibi_unit='ms')
+
+    return {
+        'hrv_sdnn': metrics.get('bvp_sdnn', np.nan),
+        'hrv_rmssd': metrics.get('bvp_rmssd', np.nan),
+        'hrv_pnn50': metrics.get('bvp_pnn50', np.nan),
+        'hrv_lf_power': metrics.get('bvp_lf_power', np.nan),
+        'hrv_hf_power': metrics.get('bvp_hf_power', np.nan),
+        'hrv_lf_hf_ratio': metrics.get('bvp_lf_hf_ratio', np.nan)
+    }
 
 
 def get_participant_mapping():
@@ -131,6 +457,18 @@ def compute_acc_window_stats(df: pd.DataFrame, start_ms: float, end_ms: float) -
 def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
     """
     Przetwarza dane dla jednego uczestnika.
+
+    Stosuje metodologię "Global Processing, Local Aggregation":
+    - Najpierw przetwarza cały sygnał IBI (oblicza globalny przebieg HR)
+    - Następnie agreguje do okien 5-sekundowych
+
+    Agregacja sygnałów:
+    - EDA: mean, std, max, peaks (tracisz piki stresu przy zwykłej średniej)
+    - BVP: std (amplituda), spectral_power, peak_to_peak (NIE średnia!)
+    - TEMP: mean, slope (zmienia się wolno)
+    - ACC: mean (pozycja), std (ruch)
+    - HR: mean, std z globalnie obliczonego przebiegu HR
+    - HRV: sdnn, rmssd, pnn50, lf/hf z IBI
     """
     print(f"Przetwarzanie uczestnika P{pid} (folder E4: {e4_folder})...")
 
@@ -142,7 +480,7 @@ def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
 
     # Wczytaj sygnały E4
     signals = {}
-    for signal_name in ['EDA', 'HR', 'TEMP', 'BVP', 'IBI']:
+    for signal_name in ['EDA', 'TEMP', 'BVP', 'IBI']:
         df = load_e4_signal(e4_folder, signal_name)
         if df is not None:
             signals[signal_name] = df
@@ -171,7 +509,23 @@ def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
 
     start_ts = min(start_timestamps)
 
-    # Przetwórz każde okno 5-sekundowe
+    # Znajdź maksymalny czas
+    max_seconds = annotations['seconds'].max()
+    max_time_ms = max_seconds * 1000
+
+    # =================================================================
+    # GLOBAL PROCESSING: Oblicz ciągły przebieg HR z całego nagrania
+    # =================================================================
+    time_grid, hr_timeseries = np.array([]), np.array([])
+    if 'IBI' in signals:
+        time_grid, hr_timeseries = compute_global_hr_from_ibi(
+            signals['IBI'], start_ts, max_time_ms
+        )
+        print(f"  Global Processing: obliczono przebieg HR ({len(hr_timeseries)} próbek)")
+
+    # =================================================================
+    # LOCAL AGGREGATION: Okna 5-sekundowe
+    # =================================================================
     results = []
 
     for _, row in annotations.iterrows():
@@ -190,63 +544,76 @@ def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
             'valence': valence
         }
 
-        # EDA
+        # -----------------------------------------------------------------
+        # EDA: mean, std, max, peaks (tracisz piki stresu przy zwykłej średniej!)
+        # -----------------------------------------------------------------
         if 'EDA' in signals:
-            stats = compute_window_stats_df(signals['EDA'], 'value', window_start_ms, window_end_ms)
-            record['eda'] = stats['mean']
-            record['eda_var'] = stats['var']
+            eda_df = signals['EDA']
+            mask = (eda_df['timestamp'] >= window_start_ms) & (eda_df['timestamp'] < window_end_ms)
+            window_eda = eda_df.loc[mask, 'value'].values
+            eda_features = compute_eda_features(window_eda, FS_EDA)
+            record.update(eda_features)
         else:
-            record['eda'] = np.nan
-            record['eda_var'] = np.nan
+            record.update({'eda_mean': np.nan, 'eda_std': np.nan, 'eda_max': np.nan, 'eda_peaks': 0})
 
-        # HR
-        if 'HR' in signals:
-            stats = compute_window_stats_df(signals['HR'], 'value', window_start_ms, window_end_ms)
-            record['hr'] = stats['mean']
-            record['hr_var'] = stats['var']
-        else:
-            record['hr'] = np.nan
-            record['hr_var'] = np.nan
-
-        # TEMP
-        if 'TEMP' in signals:
-            stats = compute_window_stats_df(signals['TEMP'], 'value', window_start_ms, window_end_ms)
-            record['temp'] = stats['mean']
-            record['temp_var'] = stats['var']
-        else:
-            record['temp'] = np.nan
-            record['temp_var'] = np.nan
-
-        # BVP metrics z IBI
-        if 'IBI' in signals:
-            ibi_values = get_ibi_in_window(signals['IBI'], window_start_ms, window_end_ms)
-            bvp_metrics = compute_metrics_from_ibi(ibi_values)
-            record.update(bvp_metrics)
-        else:
-            record['bvp_sdnn'] = np.nan
-            record['bvp_rmssd'] = np.nan
-            record['bvp_pnn50'] = np.nan
-            record['bvp_mean_hr'] = np.nan
-            record['bvp_mean_ibi'] = np.nan
-            record['bvp_lf_power'] = np.nan
-            record['bvp_hf_power'] = np.nan
-            record['bvp_lf_hf_ratio'] = np.nan
-
-        # BVP
+        # -----------------------------------------------------------------
+        # BVP: std (amplituda), spectral_power (NIE średnia - sygnał falowy!)
+        # -----------------------------------------------------------------
         if 'BVP' in signals:
-            stats = compute_window_stats_df(signals['BVP'], 'value', window_start_ms, window_end_ms)
-            record['bvp_mean'] = stats['mean']
-            record['bvp_var'] = stats['var']
+            bvp_df = signals['BVP']
+            mask = (bvp_df['timestamp'] >= window_start_ms) & (bvp_df['timestamp'] < window_end_ms)
+            window_bvp = bvp_df.loc[mask, 'value'].values
+            bvp_features = compute_bvp_features(window_bvp, FS_BVP)
+            record.update(bvp_features)
+        else:
+            record.update({'bvp_std': np.nan, 'bvp_peak_to_peak': np.nan, 'bvp_spectral_power': np.nan})
 
-        # ACC
-        if 'ACC' in signals:
-            if 'x' in signals['ACC'].columns:
-                acc_stats = compute_acc_window_stats(signals['ACC'], window_start_ms, window_end_ms)
-                record.update(acc_stats)
-            else:
-                stats = compute_window_stats_df(signals['ACC'], 'value', window_start_ms, window_end_ms)
-                record['acc_mean'] = stats['mean']
-                record['acc_var'] = stats['var']
+        # -----------------------------------------------------------------
+        # TEMP: mean, slope (zmienia się wolno)
+        # -----------------------------------------------------------------
+        if 'TEMP' in signals:
+            temp_df = signals['TEMP']
+            mask = (temp_df['timestamp'] >= window_start_ms) & (temp_df['timestamp'] < window_end_ms)
+            window_temp = temp_df.loc[mask, 'value'].values
+            window_temp_ts = temp_df.loc[mask, 'timestamp'].values
+            temp_features = compute_temp_features(window_temp, window_temp_ts)
+            record.update(temp_features)
+        else:
+            record.update({'temp_mean': np.nan, 'temp_slope': np.nan})
+
+        # -----------------------------------------------------------------
+        # ACC: mean (pozycja ciała), std (intensywność ruchu)
+        # -----------------------------------------------------------------
+        if 'ACC' in signals and 'x' in signals['ACC'].columns:
+            acc_df = signals['ACC']
+            mask = (acc_df['timestamp'] >= window_start_ms) & (acc_df['timestamp'] < window_end_ms)
+            window_acc = acc_df.loc[mask]
+            acc_x = window_acc['x'].values if 'x' in window_acc.columns else np.array([])
+            acc_y = window_acc['y'].values if 'y' in window_acc.columns else np.array([])
+            acc_z = window_acc['z'].values if 'z' in window_acc.columns else np.array([])
+            acc_features = compute_acc_features(acc_x, acc_y, acc_z)
+            record.update(acc_features)
+        else:
+            record.update({
+                'acc_x_mean': np.nan, 'acc_x_std': np.nan,
+                'acc_y_mean': np.nan, 'acc_y_std': np.nan,
+                'acc_z_mean': np.nan, 'acc_z_std': np.nan,
+                'acc_magnitude_mean': np.nan, 'acc_magnitude_std': np.nan
+            })
+
+        # -----------------------------------------------------------------
+        # HR: mean, std (z globalnie obliczonego przebiegu - Local Aggregation)
+        # -----------------------------------------------------------------
+        hr_features = compute_hr_window_features(time_grid, hr_timeseries, window_start_ms, window_end_ms)
+        record.update(hr_features)
+
+        # -----------------------------------------------------------------
+        # HRV: metryki zmienności rytmu z IBI (sdnn, rmssd, pnn50, lf/hf)
+        # -----------------------------------------------------------------
+        hrv_features = compute_ibi_window_features(
+            signals.get('IBI'), window_start_ms, window_end_ms
+        )
+        record.update(hrv_features)
 
         results.append(record)
 
