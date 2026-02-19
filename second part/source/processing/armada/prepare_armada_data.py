@@ -40,18 +40,45 @@ OUTPUT_DIR = BASE_DIR / "data" / "armada_ready"
 SCALE_RANGES = {
     'CASE': {'arousal': (0.5, 9.5), 'valence': (0.5, 9.5)},
     'K-emoCon': {'arousal': (1, 5), 'valence': (1, 5)},
-    'CEAP': {'arousal': (1, 9), 'valence': (1, 9)}
+    'CEAP': {'arousal': (-1, 1), 'valence': (-1, 1)}  # CEAP używa Raw data w zakresie [-1, 1]
 }
 
 # Progi dyskretyzacji (dla skali 0-1)
+# Oparte na przeglądzie metod rozpoznawania emocji z sygnałów fizjologicznych (Ahmad et al.)
+# SAM (Self-Assessment Manikin) 1-9 pogrupowane jako:
+#   1-3: negatywne/niskie pobudzenie → [0.00, 0.25]
+#   4-6: neutralne/umiarkowane → (0.25, 0.75)
+#   7-9: pozytywne/wysokie pobudzenie → [0.75, 1.00]
+#
+# Interpretacja dla valence:
+#   low (0.00-0.25): wyraźnie nieprzyjemne (smutek, złość, wstręt)
+#   medium (0.25-0.75): brak silnego nacechowania, stany obojętne lub mieszane
+#   high (0.75-1.00): wyraźnie przyjemne (radość, zachwyt, zadowolenie)
+#
+# Interpretacja dla arousal:
+#   low (0.00-0.25): bardzo niskie pobudzenie (relaks, senność, nuda)
+#   medium (0.25-0.75): umiarkowane pobudzenie (codzienna czujność, koncentracja)
+#   high (0.75-1.00): wysokie pobudzenie (eksytacja lub stres, zależnie od valence)
 DISCRETIZE_THRESHOLDS = {
-    'low': (0, 0.33),
-    'medium': (0.33, 0.67),
-    'high': (0.67, 1.0)
+    'low': (0, 0.25),
+    'medium': (0.25, 0.75),
+    'high': (0.75, 1.0)
 }
 
 # Zmienne fizjologiczne do dyskretyzacji (użyjemy percentyli)
-PHYSIO_VARIABLES = ['eda', 'hr', 'temp', 'bvp_rmssd', 'bvp_sdnn']
+# Zaktualizowane nazwy zgodnie z nową metodologią "Global Processing, Local Aggregation"
+PHYSIO_VARIABLES = ['eda_mean', 'hr_mean', 'temp_mean', 'hrv_rmssd', 'hrv_sdnn']
+
+# Mapowanie nazw kolumn na czytelne nazwy stanów
+VARIABLE_NAME_MAPPING = {
+    'eda_mean': 'eda',
+    'hr_mean': 'hr',
+    'temp_mean': 'temp',
+    'hrv_rmssd': 'hrv_rmssd',
+    'hrv_sdnn': 'hrv_sdnn',
+    'arousal_norm': 'arousal',
+    'valence_norm': 'valence'
+}
 
 # Okno czasowe (sekundy)
 WINDOW_SIZE = 5
@@ -231,6 +258,10 @@ def process_participant_data(
             thresholds = compute_physio_thresholds(df, var)
             if thresholds is not None:
                 intervals = extract_state_intervals(df, var, thresholds)
+                # Mapuj nazwę zmiennej na czytelną nazwę stanu
+                readable_name = VARIABLE_NAME_MAPPING.get(var, var)
+                for iv in intervals:
+                    iv['state'] = iv['state'].replace(var, readable_name)
                 all_intervals.extend(intervals)
 
     if not all_intervals:
