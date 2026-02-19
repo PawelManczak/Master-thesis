@@ -21,8 +21,8 @@ import numpy as np
 from pathlib import Path
 from scipy import signal as scipy_signal
 
-# Import wspólnych funkcji HRV
-from hrv_utils import compute_hrv_from_ibi, antialiasing_filter
+# Import wspólnych funkcji BVP
+from bvp_utils import compute_metrics_from_ibi, antialiasing_filter
 
 # Ścieżki
 BASE_DIR = Path(__file__).parent.parent.parent.parent  # extracting -> processing -> source -> second part
@@ -134,19 +134,20 @@ def process_video_data(video_physio: dict, video_annot: dict) -> pd.DataFrame:
             record['temp'] = np.nan
             record['temp_var'] = np.nan
 
-        # HRV z IBI (IBI w CEAP jest w sekundach)
+        # BVP metrics z IBI (IBI w CEAP jest w sekundach)
         window_ibi = [i['IBI'] for i in ibi_data if window_start <= i['TimeStamp'] < window_end]
         if window_ibi:
-            hrv_metrics = compute_hrv_from_ibi(np.array(window_ibi), ibi_unit='s')
-            record.update(hrv_metrics)
+            bvp_metrics = compute_metrics_from_ibi(np.array(window_ibi), ibi_unit='s')
+            record.update(bvp_metrics)
         else:
-            record['hrv_sdnn'] = np.nan
-            record['hrv_rmssd'] = np.nan
-            record['hrv_pnn50'] = np.nan
-            record['hrv_mean_hr'] = np.nan
-            record['hrv_lf_power'] = np.nan
-            record['hrv_hf_power'] = np.nan
-            record['hrv_lf_hf_ratio'] = np.nan
+            record['bvp_sdnn'] = np.nan
+            record['bvp_rmssd'] = np.nan
+            record['bvp_pnn50'] = np.nan
+            record['bvp_mean_hr'] = np.nan
+            record['bvp_mean_ibi'] = np.nan
+            record['bvp_lf_power'] = np.nan
+            record['bvp_hf_power'] = np.nan
+            record['bvp_lf_hf_ratio'] = np.nan
 
         # BVP
         window_bvp = [b['BVP'] for b in bvp_data if window_start <= b['TimeStamp'] < window_end]

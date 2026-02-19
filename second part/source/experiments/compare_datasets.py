@@ -35,31 +35,41 @@ from armada_algorithm import ARMADA
 # PARAMETRY EKSPERYMENTU
 # ============================================================================
 MINSUP = 0.5          # 50% uczestników musi mieć wzorzec
-MINCONF = 0.5         # 50% ufność dla reguł
-MAXGAP = 60           # 30 sekund maksymalna przerwa
+MINCONF = 0.5        # 50% ufność dla reguł
+MAXGAP = 30           # 30 sekund maksymalna przerwa
 MAX_PATTERN_SIZE = 3  # wzorce do 3 stanów
 
 # ============================================================================
 # FILTRY REGUŁ
 # ============================================================================
-# Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany są związane z HRV (hrv_rmssd, hrv_sdnn)
-FILTER_HRV_ONLY = True
+# Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany są związane z BVP (wszystkie metryki bvp_*)
+FILTER_BVP_ONLY = True
 
 # Jeśli True - odrzuca reguły gdzie wszystkie stany dotyczą tej samej cechy (np. tylko arousal_low, arousal_high)
 FILTER_SINGLE_FEATURE = True
 
+# Wszystkie prefiksy metryk BVP (pochodne z Blood Volume Pulse)
+BVP_PREFIXES = (
+    'bvp_sdnn',      # odchylenie standardowe IBI
+    'bvp_rmssd',     # root mean square of successive differences
+    'bvp_pnn50',     # procent różnic IBI > 50ms
+    'bvp_mean_hr',   # średnie tętno
+    'bvp_mean_ibi',  # średnie IBI
+    'bvp_lf_power',  # moc w paśmie LF
+    'bvp_hf_power',  # moc w paśmie HF
+    'bvp_lf_hf_ratio'  # stosunek LF/HF
+)
 
-def is_hrv_only_rule(rule_signature: str) -> bool:
+
+def is_bvp_only_rule(rule_signature: str) -> bool:
     """
-    Sprawdza czy reguła zawiera TYLKO stany HRV.
+    Sprawdza czy reguła zawiera TYLKO stany BVP (wszystkie pochodne).
 
-    Przykład reguły HRV-only:
-    (hrv_sdnn_low) => hrv_sdnn_low before hrv_rmssd_high
+    Przykład reguły BVP-only:
+    (bvp_sdnn_low) => bvp_sdnn_low before bvp_rmssd_high
     """
     # Wyodrębnij wszystkie stany z reguły
     # Format: "state1 relation state2 AND ... => state3 relation state4 ..."
-
-    hrv_prefixes = ('hrv_rmssd', 'hrv_sdnn')
 
     # Usuń relacje i operatory
     clean_sig = rule_signature.replace('=>', ' ').replace('AND', ' ')
@@ -76,10 +86,10 @@ def is_hrv_only_rule(rule_signature: str) -> bool:
     if not states:
         return False
 
-    # Sprawdź czy wszystkie stany zaczynają się od hrv_
+    # Sprawdź czy wszystkie stany zaczynają się od bvp_
     for state in states:
-        is_hrv = any(state.startswith(prefix) for prefix in hrv_prefixes)
-        if not is_hrv:
+        is_bvp = any(state.startswith(prefix) for prefix in BVP_PREFIXES)
+        if not is_bvp:
             return False
 
     return True
@@ -109,7 +119,7 @@ def is_single_feature_rule(rule_signature: str) -> bool:
     # Wyodrębnij bazowe cechy (np. arousal z arousal_low)
     features = set()
     for state in states:
-        # Format: feature_level (np. arousal_low, hr_high, hrv_rmssd_medium)
+        # Format: feature_level (np. arousal_low, hr_high, bvp_rmssd_medium)
         parts = state.rsplit('_', 1)
         if len(parts) == 2:
             feature = parts[0]
@@ -121,7 +131,7 @@ def is_single_feature_rule(rule_signature: str) -> bool:
 
 def filter_rules(
     rules: Set[str],
-    filter_hrv_only: bool = FILTER_HRV_ONLY,
+    filter_bvp_only: bool = FILTER_BVP_ONLY,
     filter_single_feature: bool = FILTER_SINGLE_FEATURE
 ) -> Set[str]:
     """
@@ -129,7 +139,7 @@ def filter_rules(
 
     Args:
         rules: Zbiór sygnatur reguł
-        filter_hrv_only: Czy odrzucać reguły tylko z HRV
+        filter_bvp_only: Czy odrzucać reguły tylko z BVP
         filter_single_feature: Czy odrzucać reguły z jedną cechą
 
     Returns:
@@ -139,7 +149,7 @@ def filter_rules(
 
     for rule in rules:
         # Sprawdź filtry
-        if filter_hrv_only and is_hrv_only_rule(rule):
+        if filter_bvp_only and is_bvp_only_rule(rule):
             continue
         if filter_single_feature and is_single_feature_rule(rule):
             continue
@@ -416,7 +426,7 @@ def generate_markdown_report(
     lines.append("")
     lines.append("## Filtry reguł")
     lines.append("")
-    lines.append(f"- **FILTER_HRV_ONLY**: {FILTER_HRV_ONLY} - {'odrzuca reguły zawierające tylko stany HRV' if FILTER_HRV_ONLY else 'wyłączony'}")
+    lines.append(f"- **FILTER_BVP_ONLY**: {FILTER_BVP_ONLY} - {'odrzuca reguły zawierające tylko stany BVP' if FILTER_BVP_ONLY else 'wyłączony'}")
     lines.append(f"- **FILTER_SINGLE_FEATURE**: {FILTER_SINGLE_FEATURE} - {'odrzuca reguły z jedną cechą (np. tylko arousal)' if FILTER_SINGLE_FEATURE else 'wyłączony'}")
     lines.append("")
 
@@ -527,7 +537,7 @@ def main():
     print("=" * 80)
     print(f"Data: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"Parametry: minsup={MINSUP}, minconf={MINCONF}, maxgap={MAXGAP}, max_size={MAX_PATTERN_SIZE}")
-    print(f"Filtry reguł: FILTER_HRV_ONLY={FILTER_HRV_ONLY}, FILTER_SINGLE_FEATURE={FILTER_SINGLE_FEATURE}")
+    print(f"Filtry reguł: FILTER_BVP_ONLY={FILTER_BVP_ONLY}, FILTER_SINGLE_FEATURE={FILTER_SINGLE_FEATURE}")
     print(f"Wyniki: {OUTPUT_DIR}")
     print()
 
@@ -580,7 +590,7 @@ def main():
     filtered_rules_signatures = {}
     for ds_name, rules_set in rules_signatures.items():
         original_count = len(rules_set)
-        filtered = filter_rules(rules_set, FILTER_HRV_ONLY, FILTER_SINGLE_FEATURE)
+        filtered = filter_rules(rules_set, FILTER_BVP_ONLY, FILTER_SINGLE_FEATURE)
         filtered_rules_signatures[ds_name] = filtered
         removed = original_count - len(filtered)
         if removed > 0:
@@ -621,7 +631,7 @@ def main():
             "max_pattern_size": MAX_PATTERN_SIZE
         },
         "filters": {
-            "filter_hrv_only": FILTER_HRV_ONLY,
+            "filter_bvp_only": FILTER_BVP_ONLY,
             "filter_single_feature": FILTER_SINGLE_FEATURE
         },
         "datasets": {},

@@ -24,7 +24,7 @@ import warnings
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from hrv_utils import compute_hrv_from_ecg, antialiasing_filter
+from bvp_utils import compute_metrics_from_ecg, antialiasing_filter
 
 warnings.filterwarnings('ignore')
 
@@ -277,12 +277,12 @@ def process_participant(subject_id: int, vids_duration: dict, seqs_order: dict) 
             window_temp = np.mean(window_skt) if len(window_skt) > 0 else np.nan
             window_temp_var = np.var(window_skt) if len(window_skt) > 0 else np.nan
 
-        # HRV z ECG
+        # BVP metrics z ECG
         window_ecg = ecg[daq_mask]
-        hrv_metrics = compute_hrv_from_ecg(window_ecg, FS_PHYSIO)
+        bvp_metrics = compute_metrics_from_ecg(window_ecg, FS_PHYSIO)
 
-        # HR variance (z surowego ECG przed filtracją)
-        window_hr_var = np.var(hrv_metrics['hrv_sdnn']) if not np.isnan(hrv_metrics['hrv_sdnn']) else np.nan
+        # HR variance
+        window_hr_var = np.var(bvp_metrics['bvp_sdnn']) if not np.isnan(bvp_metrics['bvp_sdnn']) else np.nan
 
         record = {
             'seconds': (window_end / 1000),
@@ -290,17 +290,18 @@ def process_participant(subject_id: int, vids_duration: dict, seqs_order: dict) 
             'valence': window_valence,
             'eda': window_eda,
             'eda_var': window_eda_var,
-            'hr': hrv_metrics['hrv_mean_hr'],
-            'hr_var': hrv_metrics['hrv_sdnn'] ** 2 if not np.isnan(hrv_metrics['hrv_sdnn']) else np.nan,
+            'hr': bvp_metrics['bvp_mean_hr'],
+            'hr_var': bvp_metrics['bvp_sdnn'] ** 2 if not np.isnan(bvp_metrics['bvp_sdnn']) else np.nan,
             'temp': window_temp,
             'temp_var': window_temp_var,
-            'hrv_sdnn': hrv_metrics['hrv_sdnn'],
-            'hrv_rmssd': hrv_metrics['hrv_rmssd'],
-            'hrv_pnn50': hrv_metrics['hrv_pnn50'],
-            'hrv_mean_hr': hrv_metrics['hrv_mean_hr'],
-            'hrv_lf_power': hrv_metrics['hrv_lf_power'],
-            'hrv_hf_power': hrv_metrics['hrv_hf_power'],
-            'hrv_lf_hf_ratio': hrv_metrics['hrv_lf_hf_ratio']
+            'bvp_sdnn': bvp_metrics['bvp_sdnn'],
+            'bvp_rmssd': bvp_metrics['bvp_rmssd'],
+            'bvp_pnn50': bvp_metrics['bvp_pnn50'],
+            'bvp_mean_hr': bvp_metrics['bvp_mean_hr'],
+            'bvp_mean_ibi': bvp_metrics['bvp_mean_ibi'],
+            'bvp_lf_power': bvp_metrics['bvp_lf_power'],
+            'bvp_hf_power': bvp_metrics['bvp_hf_power'],
+            'bvp_lf_hf_ratio': bvp_metrics['bvp_lf_hf_ratio']
         }
 
         results.append(record)

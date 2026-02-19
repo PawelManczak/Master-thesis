@@ -108,7 +108,7 @@ def analyze_emotional_patterns(armada: ARMADA) -> dict:
     mixed_patterns = []
 
     emotional_states = {'arousal', 'valence'}
-    physio_states = {'hr', 'eda', 'temp', 'hrv_rmssd', 'hrv_sdnn'}
+    physio_states = {'hr', 'eda', 'temp', 'bvp_rmssd', 'bvp_sdnn'}
 
     for pattern in armada.frequent_patterns:
         states_set = set()

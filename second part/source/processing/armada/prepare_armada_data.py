@@ -51,7 +51,7 @@ DISCRETIZE_THRESHOLDS = {
 }
 
 # Zmienne fizjologiczne do dyskretyzacji (użyjemy percentyli)
-PHYSIO_VARIABLES = ['eda', 'hr', 'temp', 'hrv_rmssd', 'hrv_sdnn']
+PHYSIO_VARIABLES = ['eda', 'hr', 'temp', 'bvp_rmssd', 'bvp_sdnn']
 
 # Okno czasowe (sekundy)
 WINDOW_SIZE = 5

@@ -18,8 +18,8 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-# Import wspólnych funkcji HRV
-from hrv_utils import compute_hrv_from_ibi
+# Import wspólnych funkcji BVP
+from bvp_utils import compute_metrics_from_ibi, compute_metrics_from_bvp
 
 # Ścieżki
 BASE_DIR = Path(__file__).parent.parent.parent.parent  # extracting -> processing -> source -> second part
@@ -217,19 +217,20 @@ def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
             record['temp'] = np.nan
             record['temp_var'] = np.nan
 
-        # HRV z IBI
+        # BVP metrics z IBI
         if 'IBI' in signals:
             ibi_values = get_ibi_in_window(signals['IBI'], window_start_ms, window_end_ms)
-            hrv_metrics = compute_hrv_from_ibi(ibi_values)
-            record.update(hrv_metrics)
+            bvp_metrics = compute_metrics_from_ibi(ibi_values)
+            record.update(bvp_metrics)
         else:
-            record['hrv_sdnn'] = np.nan
-            record['hrv_rmssd'] = np.nan
-            record['hrv_pnn50'] = np.nan
-            record['hrv_mean_hr'] = np.nan
-            record['hrv_lf_power'] = np.nan
-            record['hrv_hf_power'] = np.nan
-            record['hrv_lf_hf_ratio'] = np.nan
+            record['bvp_sdnn'] = np.nan
+            record['bvp_rmssd'] = np.nan
+            record['bvp_pnn50'] = np.nan
+            record['bvp_mean_hr'] = np.nan
+            record['bvp_mean_ibi'] = np.nan
+            record['bvp_lf_power'] = np.nan
+            record['bvp_hf_power'] = np.nan
+            record['bvp_lf_hf_ratio'] = np.nan
 
         # BVP
         if 'BVP' in signals:

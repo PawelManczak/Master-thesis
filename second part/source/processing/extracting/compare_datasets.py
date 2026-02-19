@@ -15,8 +15,8 @@ CEAP_DIR = BASE_DIR / "data" / "CEAP" / "processed"
 COMMON_COLUMNS = [
     'seconds', 'arousal', 'valence',
     'eda', 'eda_var', 'hr', 'hr_var', 'temp', 'temp_var',
-    'hrv_sdnn', 'hrv_rmssd', 'hrv_pnn50', 'hrv_mean_hr',
-    'hrv_lf_power', 'hrv_hf_power', 'hrv_lf_hf_ratio'
+    'bvp_sdnn', 'bvp_rmssd', 'bvp_pnn50', 'bvp_mean_hr', 'bvp_mean_ibi',
+    'bvp_lf_power', 'bvp_hf_power', 'bvp_lf_hf_ratio'
 ]
 
 
@@ -161,8 +161,8 @@ def compare_datasets():
 Wszystkie trzy datasety mają wspólne kolumny:
 - seconds, arousal, valence
 - eda, eda_var, hr, hr_var, temp, temp_var
-- hrv_sdnn, hrv_rmssd, hrv_pnn50, hrv_mean_hr
-- hrv_lf_power, hrv_hf_power, hrv_lf_hf_ratio
+- bvp_sdnn, bvp_rmssd, bvp_pnn50, bvp_mean_hr, bvp_mean_ibi
+- bvp_lf_power, bvp_hf_power, bvp_lf_hf_ratio
 
 RÓŻNICE W SKALACH AROUSAL/VALENCE:
 - K-EmoCon: 1-5
