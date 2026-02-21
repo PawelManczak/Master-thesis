@@ -40,10 +40,15 @@ import warnings
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from scipy import signal as scipy_signal
-from scipy.stats import linregress
-from scipy.interpolate import interp1d
-from bvp_utils import compute_metrics_from_ibi
+
+# Import wspólnych funkcji do obliczania cech
+from feature_utils import (
+    compute_eda_features,
+    compute_temp_features,
+    compute_global_hr_from_ecg,
+    compute_hr_window_features,
+    compute_hrv_from_ecg_window
+)
 
 warnings.filterwarnings('ignore')
 
@@ -192,289 +197,8 @@ def transform_annotation(raw_value: np.ndarray) -> np.ndarray:
 
 
 # =============================================================================
-# FUNKCJE AGREGUJĄCE DLA POSZCZEGÓLNYCH SYGNAŁÓW
+# FUNKCJE WCZYTYWANIA DANYCH
 # =============================================================================
-
-def compute_eda_features(values: np.ndarray, fs: float) -> dict:
-    """
-    Oblicz cechy EDA w oknie czasowym.
-
-    EDA (Electrodermal Activity) - tracisz piki stresu przy zwykłej średniej!
-
-    Args:
-        values: wartości EDA w oknie
-        fs: częstotliwość próbkowania
-
-    Returns:
-        dict z: mean, std, max, peaks_count
-    """
-    if len(values) == 0:
-        return {'eda_mean': np.nan, 'eda_std': np.nan, 'eda_max': np.nan, 'eda_peaks': 0}
-
-    values = np.array(values)
-
-    # Detekcja pików SCR (Skin Conductance Response)
-    peaks_count = 0
-    if len(values) >= 10:
-        try:
-            # Piki muszą być wyższe niż 0.01 µS od baseline
-            threshold = np.mean(values) + 0.01
-            min_distance = int(fs * 0.5)  # Minimum 0.5s między pikami
-            peaks, _ = scipy_signal.find_peaks(values, height=threshold, distance=max(1, min_distance))
-            peaks_count = len(peaks)
-        except:
-            peaks_count = 0
-
-    return {
-        'eda_mean': np.mean(values),
-        'eda_std': np.std(values, ddof=1) if len(values) > 1 else 0.0,
-        'eda_max': np.max(values),
-        'eda_peaks': peaks_count
-    }
-
-
-def compute_temp_features(values: np.ndarray, fs: float = None) -> dict:
-    """
-    Oblicz cechy temperatury w oknie czasowym.
-
-    Temperatura zmienia się wolno - średnia jest OK.
-    Dodatkowo: slope (trend) - czy rośnie czy spada.
-
-    Args:
-        values: wartości temperatury w oknie
-        fs: częstotliwość próbkowania (opcjonalne)
-
-    Returns:
-        dict z: mean, slope
-    """
-    if len(values) == 0:
-        return {'temp_mean': np.nan, 'temp_slope': np.nan}
-
-    values = np.array(values)
-    temp_mean = np.mean(values)
-
-    # Slope (trend liniowy)
-    temp_slope = 0.0
-    if len(values) >= 2:
-        try:
-            x = np.arange(len(values))
-            slope, _, _, _, _ = linregress(x, values)
-            temp_slope = slope
-        except:
-            temp_slope = 0.0
-
-    return {
-        'temp_mean': temp_mean,
-        'temp_slope': temp_slope
-    }
-
-
-def detect_r_peaks_ecg(ecg_data: np.ndarray, fs: float) -> np.ndarray:
-    """
-    Wykryj piki R w sygnale ECG (uproszczony Pan-Tompkins).
-
-    Args:
-        ecg_data: sygnał ECG
-        fs: częstotliwość próbkowania (Hz)
-
-    Returns:
-        tablica indeksów pików R
-    """
-    if len(ecg_data) < fs * 2:
-        return np.array([])
-
-    try:
-        # Filtracja pasmowa ECG (5-15 Hz - pasmo QRS)
-        nyquist = fs / 2
-        low = 5.0 / nyquist
-        high = min(15.0 / nyquist, 0.99)
-
-        b, a = scipy_signal.butter(2, [low, high], btype='band')
-        filtered_ecg = scipy_signal.filtfilt(b, a, ecg_data)
-
-        # Różniczkowanie
-        diff_ecg = np.diff(filtered_ecg)
-
-        # Podniesienie do kwadratu
-        squared = diff_ecg ** 2
-
-        # Integracja z oknem ruchomym (150 ms)
-        window_size = int(fs * 0.15)
-        if window_size < 1:
-            window_size = 1
-        integrated = np.convolve(squared, np.ones(window_size)/window_size, mode='same')
-
-        # Detekcja pików
-        min_distance = int(fs * 0.3)  # Minimalna odległość 300ms (max 200 BPM)
-        threshold = np.mean(integrated) + 0.5 * np.std(integrated)
-        peaks, _ = scipy_signal.find_peaks(integrated, distance=min_distance, height=threshold)
-
-        return peaks
-
-    except Exception:
-        return np.array([])
-
-
-def compute_global_hr_from_ecg(ecg_data: np.ndarray, daqtime: np.ndarray, fs: float) -> np.ndarray:
-    """
-    GLOBAL PROCESSING: Oblicz ciągły przebieg HR z całego sygnału ECG.
-
-    Złota zasada: "Nie licz HR w oknie, uśredniaj HR w oknie"
-
-    Pipeline:
-    1. Wykryj piki R na całym nagraniu
-    2. Oblicz IBI (RR intervals)
-    3. Oblicz chwilowe HR dla każdego IBI
-    4. Interpoluj do równomiernej siatki czasowej (1 Hz)
-
-    Args:
-        ecg_data: sygnał ECG
-        daqtime: wektor czasu (ms)
-        fs: częstotliwość próbkowania ECG
-
-    Returns:
-        tuple (time_grid_ms, hr_timeseries) - czas w ms i HR w BPM
-    """
-    # Wykryj piki R
-    r_peaks = detect_r_peaks_ecg(ecg_data, fs)
-
-    if len(r_peaks) < 2:
-        return np.array([]), np.array([])
-
-    # Oblicz RR intervals (IBI) w ms
-    rr_intervals = np.diff(r_peaks) / fs * 1000
-
-    # Timestamps dla RR intervals (średnia między kolejnymi pikami)
-    rr_timestamps = (daqtime[r_peaks[:-1]] + daqtime[r_peaks[1:]]) / 2
-
-    # Filtruj nieprawidłowe RR (300-2000 ms = 30-200 BPM)
-    valid_mask = (rr_intervals > 300) & (rr_intervals < 2000)
-    rr_intervals = rr_intervals[valid_mask]
-    rr_timestamps = rr_timestamps[valid_mask]
-
-    if len(rr_intervals) < 2:
-        return np.array([]), np.array([])
-
-    # Oblicz chwilowe HR (BPM)
-    hr_values = 60000 / rr_intervals
-
-    # Stwórz równomierną siatkę czasową (1 Hz = 1000 ms)
-    time_grid = np.arange(daqtime.min(), daqtime.max(), 1000)
-
-    if len(time_grid) == 0:
-        return np.array([]), np.array([])
-
-    # Interpoluj HR do siatki czasowej
-    try:
-        f_interp = interp1d(rr_timestamps, hr_values, kind='linear',
-                           bounds_error=False, fill_value=np.nan)
-        hr_timeseries = f_interp(time_grid)
-    except:
-        hr_timeseries = np.full(len(time_grid), np.nan)
-
-    return time_grid, hr_timeseries
-
-
-def compute_hr_window_features(time_grid: np.ndarray, hr_timeseries: np.ndarray,
-                                window_start: float, window_end: float) -> dict:
-    """
-    LOCAL AGGREGATION: Oblicz cechy HR w oknie czasowym z globalnego przebiegu.
-
-    Args:
-        time_grid: siatka czasowa (ms)
-        hr_timeseries: ciągły przebieg HR
-        window_start: początek okna (ms)
-        window_end: koniec okna (ms)
-
-    Returns:
-        dict z: hr_mean, hr_std
-    """
-    if len(hr_timeseries) == 0:
-        return {'hr_mean': np.nan, 'hr_std': np.nan}
-
-    # Znajdź wartości HR w oknie
-    mask = (time_grid >= window_start) & (time_grid < window_end)
-    hr_window = hr_timeseries[mask]
-
-    # Usuń NaN
-    hr_valid = hr_window[~np.isnan(hr_window)]
-
-    if len(hr_valid) == 0:
-        return {'hr_mean': np.nan, 'hr_std': np.nan}
-
-    return {
-        'hr_mean': np.mean(hr_valid),
-        'hr_std': np.std(hr_valid, ddof=1) if len(hr_valid) > 1 else 0.0
-    }
-
-
-def compute_ibi_window_features(r_peaks: np.ndarray, daqtime: np.ndarray, fs: float,
-                                 window_start: float, window_end: float) -> dict:
-    """
-    Oblicz metryki HRV z IBI w oknie czasowym.
-
-    Args:
-        r_peaks: indeksy pików R
-        daqtime: wektor czasu (ms)
-        fs: częstotliwość próbkowania
-        window_start: początek okna (ms)
-        window_end: koniec okna (ms)
-
-    Returns:
-        dict z metrykami HRV
-    """
-    if len(r_peaks) < 3:
-        return {
-            'hrv_sdnn': np.nan,
-            'hrv_rmssd': np.nan,
-            'hrv_pnn50': np.nan,
-            'hrv_lf_power': np.nan,
-            'hrv_hf_power': np.nan,
-            'hrv_lf_hf_ratio': np.nan
-        }
-
-    # Znajdź piki R w oknie
-    peak_times = daqtime[r_peaks]
-    mask = (peak_times >= window_start) & (peak_times < window_end)
-    window_peaks = r_peaks[mask]
-
-    if len(window_peaks) < 3:
-        return {
-            'hrv_sdnn': np.nan,
-            'hrv_rmssd': np.nan,
-            'hrv_pnn50': np.nan,
-            'hrv_lf_power': np.nan,
-            'hrv_hf_power': np.nan,
-            'hrv_lf_hf_ratio': np.nan
-        }
-
-    # Oblicz RR intervals w oknie (ms)
-    rr_intervals = np.diff(window_peaks) / fs * 1000
-
-    # Filtruj nieprawidłowe
-    valid_rr = rr_intervals[(rr_intervals > 300) & (rr_intervals < 2000)]
-
-    if len(valid_rr) < 3:
-        return {
-            'hrv_sdnn': np.nan,
-            'hrv_rmssd': np.nan,
-            'hrv_pnn50': np.nan,
-            'hrv_lf_power': np.nan,
-            'hrv_hf_power': np.nan,
-            'hrv_lf_hf_ratio': np.nan
-        }
-
-    # Użyj funkcji z bvp_utils
-    metrics = compute_metrics_from_ibi(valid_rr, ibi_unit='ms')
-
-    return {
-        'hrv_sdnn': metrics.get('bvp_sdnn', np.nan),
-        'hrv_rmssd': metrics.get('bvp_rmssd', np.nan),
-        'hrv_pnn50': metrics.get('bvp_pnn50', np.nan),
-        'hrv_lf_power': metrics.get('bvp_lf_power', np.nan),
-        'hrv_hf_power': metrics.get('bvp_hf_power', np.nan),
-        'hrv_lf_hf_ratio': metrics.get('bvp_lf_hf_ratio', np.nan)
-    }
 
 
 def load_raw_physiological(subject_id: int) -> pd.DataFrame:
@@ -550,12 +274,10 @@ def process_participant(subject_id: int, vids_duration: dict, seqs_order: dict) 
     # =================================================================
     print(f"  Global Processing: detekcja pików R...", flush=True)
 
-    # Wykryj piki R na całym nagraniu
-    r_peaks = detect_r_peaks_ecg(ecg, FS_PHYSIO)
+    # Oblicz globalny przebieg HR z ECG (feature_utils zwraca time_grid, hr_timeseries, r_peaks)
+    time_grid, hr_timeseries, r_peaks = compute_global_hr_from_ecg(ecg, daqtime, FS_PHYSIO)
     print(f"  Wykryto {len(r_peaks)} pików R", flush=True)
 
-    # Oblicz globalny przebieg HR
-    time_grid, hr_timeseries = compute_global_hr_from_ecg(ecg, daqtime, FS_PHYSIO)
 
     # =================================================================
     # LOCAL AGGREGATION: Okna 5-sekundowe
@@ -609,7 +331,7 @@ def process_participant(subject_id: int, vids_duration: dict, seqs_order: dict) 
         # -----------------------------------------------------------------
         # HRV: metryki zmienności rytmu z IBI (sdnn, rmssd, pnn50, lf/hf)
         # -----------------------------------------------------------------
-        hrv_features = compute_ibi_window_features(r_peaks, daqtime, FS_PHYSIO, window_start, window_end)
+        hrv_features = compute_hrv_from_ecg_window(r_peaks, daqtime, FS_PHYSIO, window_start, window_end)
         record.update(hrv_features)
 
         results.append(record)
