@@ -34,9 +34,9 @@ from armada_algorithm import ARMADA
 # ============================================================================
 # PARAMETRY EKSPERYMENTU
 # ============================================================================
-MINSUP = 0.5          # 50% uczestników musi mieć wzorzec
+MINSUP = 0.5         # 50% uczestników musi mieć wzorzec
 MINCONF = 0.5        # 50% ufność dla reguł
-MAXGAP = 30           # 30 sekund maksymalna przerwa
+MAXGAP = 20           # 30 sekund maksymalna przerwa
 MAX_PATTERN_SIZE = 3  # wzorce do 3 stanów
 
 # ============================================================================
@@ -291,37 +291,6 @@ def create_comparison_visualizations(
     plt.savefig(output_dir / 'patterns_comparison.png', dpi=150, bbox_inches='tight')
     plt.close()
 
-    # Wykres 2: Heatmapa podobieństwa (Jaccard)
-    fig, ax = plt.subplots(figsize=(8, 6))
-
-    n = len(datasets)
-    similarity_matrix = []
-    for ds1 in datasets:
-        row = []
-        for ds2 in datasets:
-            intersection = len(patterns_dict[ds1] & patterns_dict[ds2])
-            union = len(patterns_dict[ds1] | patterns_dict[ds2])
-            jaccard = intersection / union if union > 0 else 0
-            row.append(jaccard)
-        similarity_matrix.append(row)
-
-    im = ax.imshow(similarity_matrix, cmap='YlGnBu', vmin=0, vmax=1)
-    ax.set_xticks(range(n))
-    ax.set_yticks(range(n))
-    ax.set_xticklabels(datasets)
-    ax.set_yticklabels(datasets)
-
-    # Dodaj wartości
-    for i in range(n):
-        for j in range(n):
-            text = ax.text(j, i, f'{similarity_matrix[i][j]:.2f}',
-                          ha='center', va='center', color='black', fontsize=12)
-
-    ax.set_title('Podobieństwo Jaccarda między zbiorami')
-    plt.colorbar(im, label='Indeks Jaccarda')
-    plt.tight_layout()
-    plt.savefig(output_dir / 'similarity_heatmap.png', dpi=150, bbox_inches='tight')
-    plt.close()
 
     print(f"Zapisano wykresy w {output_dir}")
 
@@ -637,8 +606,7 @@ def main():
         "datasets": {},
         "comparison": {
             "common_all_patterns": len(common_patterns),
-            "common_all_rules": len(common_rules),
-            "jaccard_similarity": {}
+            "common_all_rules": len(common_rules)
         }
     }
 
@@ -650,14 +618,6 @@ def main():
             "unique_patterns": len(patterns_comparison.get(f'unique_{ds_name}', set()))
         }
 
-    # Jaccard similarity
-    ds_list = list(patterns_signatures.keys())
-    for i, ds1 in enumerate(ds_list):
-        for ds2 in ds_list[i+1:]:
-            intersection = len(patterns_signatures[ds1] & patterns_signatures[ds2])
-            union = len(patterns_signatures[ds1] | patterns_signatures[ds2])
-            jaccard = intersection / union if union > 0 else 0
-            summary["comparison"]["jaccard_similarity"][f"{ds1}_vs_{ds2}"] = round(jaccard, 4)
 
     with open(OUTPUT_DIR / "experiment_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
