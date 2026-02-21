@@ -49,7 +49,9 @@ FILTER_BVP_ONLY = True
 FILTER_SINGLE_FEATURE = True
 
 # Wszystkie prefiksy metryk BVP (pochodne z Blood Volume Pulse)
+# Obejmuje zarówno bvp_* jak i hrv_* (HRV = Heart Rate Variability, liczone z IBI/BVP)
 BVP_PREFIXES = (
+    # Metryki BVP
     'bvp_sdnn',      # odchylenie standardowe IBI
     'bvp_rmssd',     # root mean square of successive differences
     'bvp_pnn50',     # procent różnic IBI > 50ms
@@ -57,7 +59,14 @@ BVP_PREFIXES = (
     'bvp_mean_ibi',  # średnie IBI
     'bvp_lf_power',  # moc w paśmie LF
     'bvp_hf_power',  # moc w paśmie HF
-    'bvp_lf_hf_ratio'  # stosunek LF/HF
+    'bvp_lf_hf_ratio',  # stosunek LF/HF
+    # Metryki HRV (również pochodne z BVP/IBI)
+    'hrv_sdnn',      # odchylenie standardowe IBI
+    'hrv_rmssd',     # root mean square of successive differences
+    'hrv_pnn50',     # procent różnic IBI > 50ms
+    'hrv_lf_power',  # moc w paśmie LF
+    'hrv_hf_power',  # moc w paśmie HF
+    'hrv_lf_hf_ratio'  # stosunek LF/HF
 )
 
 

@@ -251,7 +251,7 @@ def generate_common_patterns_section(patterns_df: pd.DataFrame) -> str:
     lines.append("| # | Wzorzec | Śr. Support | CASE | K-emoCon | CEAP |")
     lines.append("|---|---------|-------------|------|----------|------|")
 
-    for i, (_, row) in enumerate(patterns_df.head(15).iterrows(), 1):
+    for i, (_, row) in enumerate(patterns_df.iterrows(), 1):
         pattern = row.get('pattern', 'N/A')
         avg_sup = row.get('avg_support', 'N/A')
         case_sup = row.get('CASE_support', 'N/A')
@@ -269,9 +269,6 @@ def generate_common_patterns_section(patterns_df: pd.DataFrame) -> str:
             ceap_sup = f"{ceap_sup:.3f}"
 
         lines.append(f"| {i} | `{pattern}` | {avg_sup} | {case_sup} | {kemo_sup} | {ceap_sup} |")
-
-    if len(patterns_df) > 15:
-        lines.append(f"| ... | *{len(patterns_df) - 15} więcej wzorców* | | | | |")
 
     lines.append("")
 
