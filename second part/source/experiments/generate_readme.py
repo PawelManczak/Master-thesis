@@ -55,10 +55,35 @@ def interpret_pattern(pattern: str) -> str:
         'valence_medium': 'neutralna walencja',
         'valence_high': 'pozytywna walencja (przyjemne emocje)',
 
-        # EDA
-        'eda_low': 'niskie przewodnictwo skórne (niski stres)',
-        'eda_medium': 'średnie przewodnictwo skórne',
-        'eda_high': 'wysokie przewodnictwo skórne (wysoki stres)',
+        # EDA (SCL - Skin Conductance Level, składowa toniczna)
+        'eda_low': 'niskie przewodnictwo skórne (niski stres, relaks)',
+        'eda_medium': 'średnie przewodnictwo skórne (normalne czuwanie)',
+        'eda_high': 'wysokie przewodnictwo skórne (wysoki stres/pobudzenie)',
+
+        # EDA SCR amplitude (Skin Conductance Response - składowa fazowa)
+        'eda_scr_amp_low': 'niska amplituda reakcji skórnych (słabe odpowiedzi emocjonalne)',
+        'eda_scr_amp_medium': 'średnia amplituda reakcji skórnych',
+        'eda_scr_amp_high': 'wysoka amplituda reakcji skórnych (silne odpowiedzi emocjonalne)',
+
+        # EDA SCR AUC (area under curve - łączna aktywność fazowa)
+        'eda_scr_auc_low': 'niska łączna aktywność elektrodermalna (mało reakcji)',
+        'eda_scr_auc_medium': 'średnia łączna aktywność elektrodermalna',
+        'eda_scr_auc_high': 'wysoka łączna aktywność elektrodermalna (intensywne reakcje)',
+
+        # EDA std (zmienność składowej fazowej - SCR variability)
+        'eda_std_low': 'niska zmienność reakcji skórnych (stabilny sygnał)',
+        'eda_std_medium': 'średnia zmienność reakcji skórnych',
+        'eda_std_high': 'wysoka zmienność reakcji skórnych (niestabilny sygnał)',
+
+        # EDA max (maksimum sygnału w oknie)
+        'eda_max_low': 'niskie maksimum przewodnictwa skórnego',
+        'eda_max_medium': 'średnie maksimum przewodnictwa skórnego',
+        'eda_max_high': 'wysokie maksimum przewodnictwa skórnego (silna reakcja)',
+
+        # EDA peaks (liczba pików SCR - częstość reakcji)
+        'eda_peaks_low': 'mała liczba reakcji skórnych (1-3 SCR/min, relaks)',
+        'eda_peaks_medium': 'średnia liczba reakcji skórnych',
+        'eda_peaks_high': 'duża liczba reakcji skórnych (wysoka aktywność współczulna)',
 
         # HR
         'hr_low': 'niskie tętno',
@@ -175,10 +200,16 @@ def generate_methodology_section(summary: dict) -> str:
     lines.append("")
     lines.append("#### EDA (przewodnictwo skórne)")
     lines.append("")
-    lines.append("Zgodnie z zaleceniami psychofizjologicznymi (Boucsein, Horvers et al.):")
+    lines.append("Pipeline 5-krokowy (Greco et al. 2016, Benedek & Kaernbach 2010, Braithwaite et al. 2013):")
     lines.append("")
-    lines.append("1. **Normalizacja osobnicza**: `EDA_norm = (EDA - EDA_min) / (EDA_max - EDA_min)`")
-    lines.append("2. **Progi**: low [0, 0.33], medium (0.33, 0.66], high (0.66, 1.00]")
+    lines.append("1. **Filtracja dolnoprzepustowa** 1 Hz (Butterworth 4. rzędu) — rekomendacja SPR")
+    lines.append("2. **Dekompozycja Tonic/Phasic** — filtr medianowy 4s (CDA)")
+    lines.append("   - Tonic (SCL): wolnozmienny poziom bazowy")
+    lines.append("   - Phasic (SCR): szybkozmienne reakcje skórne")
+    lines.append("3. **Ekstrakcja cech w oknach 5s**: SCL mean, SCR peaks/amplitude/AUC")
+    lines.append("4. **Normalizacja osobnicza** Min-Max: `EDA_norm = (EDA - EDA_min) / (EDA_max - EDA_min)`")
+    lines.append("   - Lykken & Venables (1971), Boucsein (2012)")
+    lines.append("5. **Progi dyskretyzacji**: low [0, 0.33], medium (0.33, 0.66], high (0.66, 1.00]")
     lines.append("")
     lines.append("#### Pozostałe zmienne fizjologiczne")
     lines.append("")

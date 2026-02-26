@@ -45,8 +45,22 @@ MAX_PATTERN_SIZE = 3  # wzorce do 3 stanów
 # Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany są związane z BVP (wszystkie metryki bvp_*)
 FILTER_BVP_ONLY = True
 
+# Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany są związane z EDA (eda, eda_scr_amp, eda_scr_auc)
+FILTER_EDA_ONLY = True
+
 # Jeśli True - odrzuca reguły gdzie wszystkie stany dotyczą tej samej cechy (np. tylko arousal_low, arousal_high)
 FILTER_SINGLE_FEATURE = True
+
+# Wszystkie prefiksy metryk EDA (pochodne z Electrodermal Activity)
+# Obejmuje SCL (tonic), SCR (phasic) i statystyki ogólne - wszystkie 6 cech EDA
+EDA_PREFIXES = (
+    'eda_scr_amp',    # SCR amplitude (phasic peak amplitude) - PRZED 'eda_scr_auc'!
+    'eda_scr_auc',    # SCR AUC (phasic area under curve)
+    'eda_std',        # zmienność phasic (SCR variability)
+    'eda_max',        # maksimum sygnału w oknie
+    'eda_peaks',      # liczba pików SCR
+    'eda',            # SCL - skin conductance level (tonic mean) - NA KOŃCU (najkrótszy prefix)
+)
 
 # Wszystkie prefiksy metryk BVP (pochodne z Blood Volume Pulse)
 # Obejmuje zarówno bvp_* jak i hrv_* (HRV = Heart Rate Variability, liczone z IBI/BVP)
@@ -104,6 +118,34 @@ def is_bvp_only_rule(rule_signature: str) -> bool:
     return True
 
 
+def is_eda_only_rule(rule_signature: str) -> bool:
+    """
+    Sprawdza czy reguła zawiera TYLKO stany EDA (wszystkie pochodne).
+
+    Przykład reguły EDA-only:
+    (eda_low) => eda_low before eda_scr_amp_high
+    """
+    clean_sig = rule_signature.replace('=>', ' ').replace('AND', ' ')
+    clean_sig = clean_sig.replace('equals', ' ').replace('before', ' ')
+    clean_sig = clean_sig.replace('meets', ' ').replace('overlaps', ' ')
+    clean_sig = clean_sig.replace('contains', ' ').replace('starts', ' ')
+    clean_sig = clean_sig.replace('is-finished-by', ' ')
+    clean_sig = clean_sig.replace('(', '').replace(')', '')
+
+    tokens = [t.strip() for t in clean_sig.split() if t.strip()]
+    states = [t for t in tokens if '_' in t]
+
+    if not states:
+        return False
+
+    for state in states:
+        is_eda = any(state.startswith(prefix) for prefix in EDA_PREFIXES)
+        if not is_eda:
+            return False
+
+    return True
+
+
 def is_single_feature_rule(rule_signature: str) -> bool:
     """
     Sprawdza czy reguła zawiera tylko jedną cechę (np. tylko arousal).
@@ -141,6 +183,7 @@ def is_single_feature_rule(rule_signature: str) -> bool:
 def filter_rules(
     rules: Set[str],
     filter_bvp_only: bool = FILTER_BVP_ONLY,
+    filter_eda_only: bool = FILTER_EDA_ONLY,
     filter_single_feature: bool = FILTER_SINGLE_FEATURE
 ) -> Set[str]:
     """
@@ -149,6 +192,7 @@ def filter_rules(
     Args:
         rules: Zbiór sygnatur reguł
         filter_bvp_only: Czy odrzucać reguły tylko z BVP
+        filter_eda_only: Czy odrzucać reguły tylko z EDA (eda, eda_scr_amp, eda_scr_auc)
         filter_single_feature: Czy odrzucać reguły z jedną cechą
 
     Returns:
@@ -159,6 +203,8 @@ def filter_rules(
     for rule in rules:
         # Sprawdź filtry
         if filter_bvp_only and is_bvp_only_rule(rule):
+            continue
+        if filter_eda_only and is_eda_only_rule(rule):
             continue
         if filter_single_feature and is_single_feature_rule(rule):
             continue
@@ -405,6 +451,7 @@ def generate_markdown_report(
     lines.append("## Filtry reguł")
     lines.append("")
     lines.append(f"- **FILTER_BVP_ONLY**: {FILTER_BVP_ONLY} - {'odrzuca reguły zawierające tylko stany BVP' if FILTER_BVP_ONLY else 'wyłączony'}")
+    lines.append(f"- **FILTER_EDA_ONLY**: {FILTER_EDA_ONLY} - {'odrzuca reguły zawierające tylko stany EDA' if FILTER_EDA_ONLY else 'wyłączony'}")
     lines.append(f"- **FILTER_SINGLE_FEATURE**: {FILTER_SINGLE_FEATURE} - {'odrzuca reguły z jedną cechą (np. tylko arousal)' if FILTER_SINGLE_FEATURE else 'wyłączony'}")
     lines.append("")
 
@@ -515,7 +562,7 @@ def main():
     print("=" * 80)
     print(f"Data: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"Parametry: minsup={MINSUP}, minconf={MINCONF}, maxgap={MAXGAP}, max_size={MAX_PATTERN_SIZE}")
-    print(f"Filtry reguł: FILTER_BVP_ONLY={FILTER_BVP_ONLY}, FILTER_SINGLE_FEATURE={FILTER_SINGLE_FEATURE}")
+    print(f"Filtry reguł: FILTER_BVP_ONLY={FILTER_BVP_ONLY}, FILTER_EDA_ONLY={FILTER_EDA_ONLY}, FILTER_SINGLE_FEATURE={FILTER_SINGLE_FEATURE}")
     print(f"Wyniki: {OUTPUT_DIR}")
     print()
 
@@ -568,7 +615,7 @@ def main():
     filtered_rules_signatures = {}
     for ds_name, rules_set in rules_signatures.items():
         original_count = len(rules_set)
-        filtered = filter_rules(rules_set, FILTER_BVP_ONLY, FILTER_SINGLE_FEATURE)
+        filtered = filter_rules(rules_set, FILTER_BVP_ONLY, FILTER_EDA_ONLY, FILTER_SINGLE_FEATURE)
         filtered_rules_signatures[ds_name] = filtered
         removed = original_count - len(filtered)
         if removed > 0:
@@ -610,6 +657,7 @@ def main():
         },
         "filters": {
             "filter_bvp_only": FILTER_BVP_ONLY,
+            "filter_eda_only": FILTER_EDA_ONLY,
             "filter_single_feature": FILTER_SINGLE_FEATURE
         },
         "datasets": {},

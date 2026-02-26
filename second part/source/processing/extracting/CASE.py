@@ -28,11 +28,11 @@ AGREGACJA SYGNAŁÓW DO OKIEN 5-SEKUNDOWYCH:
 ------------------------------------------
 | Sygnał | Problem ze średnią              | Funkcje agregujące                    |
 |--------|----------------------------------|---------------------------------------|
-| EDA    | Tracisz piki stresu (SCR)       | mean, std, max, peaks_count           |
+| EDA    | Tracisz piki stresu (SCR)       | SCL(tonic), SCR peaks/amp/AUC(phasic) |
 | ECG    | Sygnał falowy!                  | HR z globalnego przebiegu             |
 | TEMP   | Zmienia się wolno, OK           | mean, slope (trend)                   |
 
-Output: seconds, arousal, valence, eda_mean, eda_std, eda_max, eda_peaks,
+Output: seconds, arousal, valence, eda_mean, eda_std, eda_max, eda_peaks, eda_scr_mean_amp, eda_scr_auc,
         hr_mean, hr_std, temp_mean, temp_slope, hrv_* metrics
 """
 
@@ -43,7 +43,9 @@ import pandas as pd
 
 # Import wspólnych funkcji do obliczania cech
 from feature_utils import (
+    preprocess_eda_global,
     compute_eda_features,
+    normalize_eda_features_subject,
     compute_temp_features,
     compute_global_hr_from_ecg,
     compute_hr_window_features,
@@ -278,6 +280,14 @@ def process_participant(subject_id: int, vids_duration: dict, seqs_order: dict) 
     time_grid, hr_timeseries, r_peaks = compute_global_hr_from_ecg(ecg, daqtime, FS_PHYSIO)
     print(f"  Wykryto {len(r_peaks)} pików R", flush=True)
 
+    # =================================================================
+    # GLOBAL PROCESSING: Dekompozycja EDA na składowe Tonic/Phasic
+    # Pipeline: filtr dolnoprzepustowy 1 Hz -> dekompozycja medianowa
+    # Greco et al. (2016), Benedek & Kaernbach (2010)
+    # =================================================================
+    print(f"  Global Processing: dekompozycja EDA (Tonic/Phasic)...", flush=True)
+    gsr_filtered, gsr_tonic, gsr_phasic = preprocess_eda_global(gsr, FS_PHYSIO)
+    print(f"  Dekompozycja EDA: {len(gsr)} próbek przetworzonych", flush=True)
 
     # =================================================================
     # LOCAL AGGREGATION: Okna 5-sekundowe
@@ -309,10 +319,16 @@ def process_participant(subject_id: int, vids_duration: dict, seqs_order: dict) 
         record['valence'] = np.mean(valence[js_mask])
 
         # -----------------------------------------------------------------
-        # EDA: mean, std, max, peaks (tracisz piki stresu przy zwykłej średniej!)
+        # EDA: SCL (tonic mean), SCR peaks/amplitude/AUC (phasic)
+        # Pipeline: Global Filtering -> Tonic/Phasic Decomposition -> Window Aggregation
+        # Braithwaite et al. (2013): częstość SCR i amplituda = najrzetelniejsze wskaźniki
         # -----------------------------------------------------------------
-        window_gsr = gsr[daq_mask]
-        eda_features = compute_eda_features(window_gsr, FS_PHYSIO)
+        window_filtered = gsr_filtered[daq_mask]
+        window_tonic = gsr_tonic[daq_mask]
+        window_phasic = gsr_phasic[daq_mask]
+        eda_features = compute_eda_features(window_filtered, FS_PHYSIO,
+                                             tonic_values=window_tonic,
+                                             phasic_values=window_phasic)
         record.update(eda_features)
 
         # -----------------------------------------------------------------
@@ -343,7 +359,16 @@ def process_participant(subject_id: int, vids_duration: dict, seqs_order: dict) 
     if len(results) == 0:
         return None
 
-    return pd.DataFrame(results)
+    df = pd.DataFrame(results)
+
+    # =================================================================
+    # Krok 4: Normalizacja wewnątrz-osobnicza EDA (Min-Max)
+    # Lykken & Venables (1971), Boucsein (2012)
+    # =================================================================
+    df = normalize_eda_features_subject(df)
+    print(f"  Normalizacja osobnicza EDA: dodano kolumny *_norm", flush=True)
+
+    return df
 
 
 def main():

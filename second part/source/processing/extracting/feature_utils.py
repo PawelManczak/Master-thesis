@@ -13,67 +13,293 @@ AGREGACJA SYGNAŁÓW DO OKIEN 5-SEKUNDOWYCH:
 ------------------------------------------
 | Sygnał | Problem ze średnią              | Funkcje agregujące                    |
 |--------|----------------------------------|---------------------------------------|
-| EDA    | Tracisz piki stresu (SCR)       | mean, std, max, peaks_count           |
+| EDA    | Tracisz piki stresu (SCR)       | SCL(tonic), SCR peaks/amp/AUC(phasic) |
 | BVP    | Średnia→0 (sygnał falowy!)      | std (amplituda), spectral_power       |
 | TEMP   | Zmienia się wolno, OK           | mean, slope (trend)                   |
 | ACC    | Średnia=grawitacja/pozycja      | mean (pozycja), std (ruch/drżenie)    |
 
+PRZETWARZANIE EDA (NeuroKit2):
+1. nk.eda_clean() - filtracja dolnoprzepustowa (Butterworth, cutoff 3 Hz / pomijana dla fs<7 Hz)
+    2. nk.eda_phasic(method='highpass') - dekompozycja Tonic(SCL)/Phasic(SCR)
+3. nk.eda_findpeaks() - detekcja pików SCR z amplitudami
+4. Ekstrakcja cech: SCL mean, SCR peaks/amplitude/AUC - Braithwaite et al. (2013)
+5. Normalizacja osobnicza Min-Max - Lykken & Venables (1971), Boucsein (2012)
+6. Dyskretyzacja: Low [0, 0.33), Medium [0.33, 0.67), High [0.67, 1.0]
+
 Referencje:
-- Task Force of ESC and NASPE (1996). Heart rate variability: standards of measurement
+- Makowski, D. et al. (2021). NeuroKit2. Behavior Research Methods, 53, 1689–1696.
+- Greco, A. et al. (2016). cvxEDA. IEEE TBME.
+- Benedek, M. & Kaernbach, C. (2010). Continuous Decomposition Analysis. Psychophysiology.
+- Braithwaite, J.J. et al. (2013). A Guide for Analysing EDA. Birmingham.
 - Boucsein, W. (2012). Electrodermal Activity. Springer.
+- Task Force of ESC and NASPE (1996). Heart rate variability: standards of measurement.
 - Pham et al. (2021). Heart Rate Variability in Psychology. Frontiers in Psychology.
 """
 
+import warnings
 import numpy as np
 import pandas as pd
 from scipy import signal as scipy_signal
 from scipy.stats import linregress
 from scipy.interpolate import interp1d
-from typing import Dict, Tuple, Optional, Union
+from typing import Tuple
+
+import neurokit2 as nk
 
 from bvp_utils import compute_metrics_from_ibi
 
 
 # =============================================================================
-# FUNKCJE DLA EDA (Electrodermal Activity)
+# FUNKCJE DLA EDA (Electrodermal Activity) — oparte na NeuroKit2
+# =============================================================================
+# Pipeline NeuroKit2:
+# 1. nk.eda_clean() - filtracja (Butterworth LP, cutoff 3 Hz; pomijana dla fs<7 Hz)
+# 2. nk.eda_phasic(method='highpass') - dekompozycja Tonic(SCL)/Phasic(SCR)
+# 3. nk.eda_findpeaks() - detekcja pików SCR z amplitudami (Neurokit/Kim2004/Gamboa)
+# 4. Ekstrakcja cech w oknach: z phasic (SCR peaks/amp/AUC) + tonic (SCL mean)
+# 5. Normalizacja wewnątrz-osobnicza Min-Max - Lykken & Venables (1971), Boucsein (2012)
+# 6. Dyskretyzacja na kategorie Low/Medium/High (tercyle 0.33/0.67)
+#
+# Referencje:
+# - Makowski, D. et al. (2021). NeuroKit2. Behavior Research Methods, 53, 1689–1696.
+# - Greco, A. et al. (2016). cvxEDA: A Convex Optimization Approach. IEEE TBME.
+# - Benedek, M. & Kaernbach, C. (2010). Continuous Decomposition Analysis. Psychophysiology.
+# - Braithwaite, J.J. et al. (2013). A Guide for Analysing EDA. Birmingham.
+# - Boucsein, W. (2012). Electrodermal Activity. Springer.
+# - Lykken, D.T. & Venables, P.H. (1971). Direct measurement of skin conductance.
 # =============================================================================
 
-def compute_eda_features(values: np.ndarray, fs: float) -> dict:
-    """
-    Oblicz cechy EDA w oknie czasowym.
 
-    EDA (Electrodermal Activity) - tracisz piki stresu przy zwykłej średniej!
+def preprocess_eda_global(eda_signal: np.ndarray, fs: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    GLOBAL PROCESSING: Preprocessing i dekompozycja EDA za pomocą NeuroKit2.
+
+    Pipeline:
+    1. nk.eda_clean() - filtracja dolnoprzepustowa (Butterworth 4. rzędu)
+       - cutoff 3 Hz dla fs >= 7 Hz (domyślne NeuroKit)
+       - pomijana dla fs < 7 Hz (np. Empatica E4 @ 4 Hz)
+    2. nk.eda_phasic(method='highpass') - dekompozycja:
+       - Tonic (SCL): Skin Conductance Level
+       - Phasic (SCR): Skin Conductance Response
+       - Metoda Biopac Acqknowledge: highpass filter z cutoff 0.05 Hz
 
     Args:
-        values: wartości EDA w oknie
-        fs: częstotliwość próbkowania
+        eda_signal: surowy sygnał EDA (µS) z całego nagrania
+        fs: częstotliwość próbkowania (Hz)
 
     Returns:
-        dict z: eda_mean, eda_std, eda_max, eda_peaks
+        tuple (cleaned, tonic, phasic):
+            - cleaned: sygnał po filtracji (nk.eda_clean)
+            - tonic: składowa toniczna (SCL)
+            - phasic: składowa fazowa (SCR)
     """
+    eda_signal = np.array(eda_signal, dtype=float)
+
+    if len(eda_signal) < 4:
+        return eda_signal.copy(), eda_signal.copy(), np.zeros_like(eda_signal)
+
+    sampling_rate = int(round(fs))
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+
+            # Krok 1: Czyszczenie sygnału (filtracja)
+            # NeuroKit automatycznie pomija filtrację dla fs < 7 Hz
+            cleaned = nk.eda_clean(eda_signal, sampling_rate=sampling_rate, method='neurokit')
+
+            # Krok 2: Dekompozycja Tonic/Phasic
+            # highpass = filtr górnoprzepustowy z cutoff 0.05 Hz (Biopac Acqknowledge)
+            # Szybki i stabilny - domyślna metoda NeuroKit2
+            decomposed = nk.eda_phasic(cleaned, sampling_rate=sampling_rate, method='highpass')
+
+            tonic = decomposed['EDA_Tonic'].values
+            phasic = decomposed['EDA_Phasic'].values
+
+    except Exception:
+        # Fallback: jeśli NeuroKit się nie uda
+        cleaned = eda_signal.copy()
+        tonic = eda_signal.copy()
+        phasic = np.zeros_like(eda_signal)
+
+    return cleaned, tonic, phasic
+
+
+def compute_eda_features(
+    values: np.ndarray,
+    fs: float,
+    tonic_values: np.ndarray = None,
+    phasic_values: np.ndarray = None
+) -> dict:
+    """
+    Oblicz cechy EDA w oknie czasowym za pomocą NeuroKit2.
+
+    Jeśli podano tonic_values i phasic_values (z preprocess_eda_global),
+    używa nk.eda_findpeaks() do profesjonalnej detekcji SCR.
+    W przeciwnym razie fallback do prostej analizy.
+
+    Cechy z komponentu Phasic (SCR) - Braithwaite et al. (2013):
+    - eda_peaks: liczba pików SCR (najrzetelniejszy wskaźnik arousal)
+    - eda_scr_mean_amp: średnia amplituda pików SCR (nk.eda_findpeaks)
+    - eda_scr_auc: AUC z pozytywnej części phasic
+
+    Cechy z komponentu Tonic (SCL):
+    - eda_mean: średni poziom SCL (Skin Conductance Level)
+
+    Cechy ogólne:
+    - eda_std: odchylenie standardowe phasic (zmienność odpowiedzi)
+    - eda_max: maksimum oryginalnego sygnału w oknie
+
+    Args:
+        values: wartości EDA w oknie (cleaned lub surowe)
+        fs: częstotliwość próbkowania
+        tonic_values: składowa toniczna (SCL) w oknie (opcjonalne)
+        phasic_values: składowa fazowa (SCR) w oknie (opcjonalne)
+
+    Returns:
+        dict z: eda_mean, eda_std, eda_max, eda_peaks, eda_scr_mean_amp, eda_scr_auc
+    """
+    empty = {
+        'eda_mean': np.nan, 'eda_std': np.nan, 'eda_max': np.nan,
+        'eda_peaks': 0, 'eda_scr_mean_amp': np.nan, 'eda_scr_auc': np.nan
+    }
+
     if len(values) == 0:
-        return {'eda_mean': np.nan, 'eda_std': np.nan, 'eda_max': np.nan, 'eda_peaks': 0}
+        return empty
 
-    values = np.array(values)
+    values = np.array(values, dtype=float)
+    sampling_rate = int(round(fs))
 
-    # Detekcja pików SCR (Skin Conductance Response)
+    # =================================================================
+    # Ścieżka z dekompozycją NeuroKit2 (naukowo poprawna)
+    # =================================================================
+    if tonic_values is not None and phasic_values is not None:
+        tonic_values = np.array(tonic_values, dtype=float)
+        phasic_values = np.array(phasic_values, dtype=float)
+
+        # --- Tonic (SCL): średni poziom bazowy ---
+        eda_mean = float(np.mean(tonic_values))
+
+        # --- Phasic (SCR): zmienność i piki ---
+        eda_std = float(np.std(phasic_values, ddof=1)) if len(phasic_values) > 1 else 0.0
+        eda_max = float(np.max(values))
+
+        # Detekcja pików SCR za pomocą NeuroKit2
+        peaks_count = 0
+        scr_amplitudes = []
+
+        if len(phasic_values) >= 4:
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    # nk.eda_findpeaks na komponencie phasic
+                    # amplitude_min=0.01 - minimalny próg SCR (Braithwaite et al. 2013)
+                    peak_info = nk.eda_findpeaks(phasic_values, sampling_rate=sampling_rate,
+                                                  method='neurokit', amplitude_min=0.01)
+                    scr_peaks = peak_info.get('SCR_Peaks', [])
+                    # SCR_Height = amplituda phasic w miejscu piku
+                    scr_heights = peak_info.get('SCR_Height', [])
+
+                    if len(scr_peaks) > 0:
+                        peaks_count = len(scr_peaks)
+                        valid_amps = [a for a in scr_heights if not np.isnan(a)]
+                        if valid_amps:
+                            scr_amplitudes = valid_amps
+            except Exception:
+                peaks_count = 0
+
+        scr_mean_amp = float(np.mean(scr_amplitudes)) if scr_amplitudes else 0.0
+
+        # AUC z pozytywnej części phasic
+        positive_phasic = np.maximum(phasic_values, 0.0)
+        scr_auc = float(np.trapezoid(positive_phasic, dx=1.0/fs)) if len(positive_phasic) > 1 else 0.0
+
+        return {
+            'eda_mean': eda_mean,
+            'eda_std': eda_std,
+            'eda_max': eda_max,
+            'eda_peaks': peaks_count,
+            'eda_scr_mean_amp': scr_mean_amp,
+            'eda_scr_auc': scr_auc
+        }
+
+    # =================================================================
+    # Fallback: prosta analiza bez dekompozycji
+    # =================================================================
     peaks_count = 0
-    if len(values) >= 3:
+    if len(values) >= 4:
         try:
-            # Piki muszą być wyższe niż 0.01 µS od baseline
-            threshold = np.mean(values) + 0.01
-            min_distance = max(1, int(fs * 0.5))  # Minimum 0.5s między pikami
-            peaks, _ = scipy_signal.find_peaks(values, height=threshold, distance=min_distance)
-            peaks_count = len(peaks)
-        except:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                peak_info = nk.eda_findpeaks(values, sampling_rate=sampling_rate,
+                                              method='neurokit', amplitude_min=0.01)
+                scr_peaks = peak_info.get('SCR_Peaks', [])
+                peaks_count = len(scr_peaks) if len(scr_peaks) > 0 else 0
+        except Exception:
             peaks_count = 0
 
     return {
         'eda_mean': float(np.mean(values)),
         'eda_std': float(np.std(values, ddof=1)) if len(values) > 1 else 0.0,
         'eda_max': float(np.max(values)),
-        'eda_peaks': peaks_count
+        'eda_peaks': peaks_count,
+        'eda_scr_mean_amp': np.nan,
+        'eda_scr_auc': np.nan
     }
+
+
+def normalize_eda_features_subject(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalizacja wewnątrz-osobnicza (Min-Max) cech EDA.
+
+    Krytyczny krok dla kategoryzacji! Zakresy EDA różnią się drastycznie
+    między ludźmi (grubość skóry, liczba gruczołów). Porównywanie surowych
+    wartości (np. "5 µS to High Arousal") jest błędem metodologicznym.
+
+    Wzór: X_norm = (X - X_min) / (X_max - X_min)
+    gdzie min/max to ekstrema dla danego badanego z całego nagrania.
+
+    Referencje:
+    - Lykken & Venables (1971): Range Correction dla porównań międzyosobniczych
+    - Boucsein (2012): konieczność korekcji zakresu dla rzetelnej klasyfikacji
+
+    Normalizowane kolumny:
+    - eda_mean (SCL) -> eda_mean_norm
+    - eda_scr_mean_amp -> eda_scr_mean_amp_norm
+    - eda_scr_auc -> eda_scr_auc_norm
+    - eda_max -> eda_max_norm
+
+    Args:
+        df: DataFrame z danymi jednego uczestnika (musi zawierać kolumny eda_*)
+
+    Returns:
+        DataFrame z dodanymi kolumnami *_norm (zakres [0, 1])
+    """
+    df = df.copy()
+
+    eda_columns = ['eda_mean', 'eda_std', 'eda_max', 'eda_peaks', 'eda_scr_mean_amp', 'eda_scr_auc']
+
+    for col in eda_columns:
+        if col not in df.columns:
+            continue
+
+        values = df[col].copy()
+        valid = values.dropna()
+
+        if len(valid) < 2:
+            df[f'{col}_norm'] = np.nan
+            continue
+
+        vmin = valid.min()
+        vmax = valid.max()
+
+        if vmax - vmin < 1e-10:
+            # Brak zmienności - wszystko na 0.5
+            df[f'{col}_norm'] = 0.5
+        else:
+            df[f'{col}_norm'] = (values - vmin) / (vmax - vmin)
+
+    return df
 
 
 # =============================================================================
@@ -414,7 +640,7 @@ def compute_hr_window_features(
     LOCAL AGGREGATION: Oblicz cechy HR w oknie czasowym z globalnego przebiegu.
 
     Args:
-        time_grid: siatka czasowa
+        time_grid: siatka czasowa (posortowana rosnąco)
         hr_timeseries: ciągły przebieg HR
         window_start: początek okna
         window_end: koniec okna
@@ -425,9 +651,10 @@ def compute_hr_window_features(
     if len(hr_timeseries) == 0 or len(time_grid) == 0:
         return {'hr_mean': np.nan, 'hr_std': np.nan}
 
-    # Znajdź wartości HR w oknie
-    mask = (time_grid >= window_start) & (time_grid < window_end)
-    hr_window = hr_timeseries[mask]
+    # Znajdź wartości HR w oknie (O(log n) zamiast O(n))
+    i0 = np.searchsorted(time_grid, window_start, side='left')
+    i1 = np.searchsorted(time_grid, window_end, side='left')
+    hr_window = hr_timeseries[i0:i1]
 
     # Usuń NaN
     hr_valid = hr_window[~np.isnan(hr_window)]
@@ -480,9 +707,10 @@ def compute_hrv_window_features(
     ibi_timestamps = np.array(ibi_timestamps)
     ibi_values = np.array(ibi_values)
 
-    # Pobierz IBI w oknie
-    mask = (ibi_timestamps >= window_start) & (ibi_timestamps < window_end)
-    window_ibi = ibi_values[mask]
+    # Pobierz IBI w oknie (O(log n) zamiast O(n))
+    i0 = np.searchsorted(ibi_timestamps, window_start, side='left')
+    i1 = np.searchsorted(ibi_timestamps, window_end, side='left')
+    window_ibi = ibi_values[i0:i1]
 
     if len(window_ibi) < 3:
         return empty_result
@@ -532,10 +760,11 @@ def compute_hrv_from_ecg_window(
     if len(r_peaks) < 3:
         return empty_result
 
-    # Znajdź piki R w oknie
+    # Znajdź piki R w oknie (O(log n))
     peak_times = time_data[r_peaks]
-    mask = (peak_times >= window_start) & (peak_times < window_end)
-    window_peaks = r_peaks[mask]
+    i0 = np.searchsorted(peak_times, window_start, side='left')
+    i1 = np.searchsorted(peak_times, window_end, side='left')
+    window_peaks = r_peaks[i0:i1]
 
     if len(window_peaks) < 3:
         return empty_result

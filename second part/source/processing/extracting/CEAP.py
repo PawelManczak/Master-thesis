@@ -25,7 +25,7 @@ AGREGACJA SYGNAŁÓW DO OKIEN 5-SEKUNDOWYCH:
 ------------------------------------------
 | Sygnał | Problem ze średnią              | Funkcje agregujące                    |
 |--------|----------------------------------|---------------------------------------|
-| EDA    | Tracisz piki stresu (SCR)       | mean, std, max, peaks_count           |
+| EDA    | Tracisz piki stresu (SCR)       | SCL(tonic), SCR peaks/amp/AUC(phasic) |
 | HR/IBI | Tracisz zmienność rytmu (HRV)   | mean, std (SDNN), RMSSD               |
 | BVP    | Średnia→0 (sygnał falowy!)      | std (amplituda), spectral_power (NIE mean!) |
 | TEMP   | Zmienia się wolno, OK           | mean, slope (trend)                   |
@@ -51,7 +51,9 @@ import pandas as pd
 
 # Import wspólnych funkcji do obliczania cech
 from feature_utils import (
+    preprocess_eda_global,
     compute_eda_features,
+    normalize_eda_features_subject,
     compute_bvp_features,
     compute_temp_features,
     compute_acc_features,
@@ -147,7 +149,7 @@ def process_video_data(video_physio: dict, video_annot: dict) -> pd.DataFrame:
     - Następnie agreguje do okien 5-sekundowych
 
     Agregacja sygnałów:
-    - EDA: mean, std, max, peaks (tracisz piki stresu przy zwykłej średniej)
+    - EDA: SCL (tonic mean), SCR peaks/amplitude/AUC (phasic) - Braithwaite et al. (2013)
     - BVP: std (amplituda), spectral_power, peak_to_peak (NIE średnia - sygnał falowy!)
     - TEMP: mean, slope (zmienia się wolno)
     - ACC: mean (pozycja), std (ruch)
@@ -175,6 +177,18 @@ def process_video_data(video_physio: dict, video_annot: dict) -> pd.DataFrame:
     # =================================================================
     time_grid, hr_timeseries = compute_global_hr_timeseries_ceap(ibi_data, max_time)
 
+    # =================================================================
+    # GLOBAL PROCESSING: Dekompozycja EDA na składowe Tonic/Phasic
+    # Pipeline: filtr dolnoprzepustowy 1 Hz -> dekompozycja medianowa
+    # Greco et al. (2016), Benedek & Kaernbach (2010)
+    # =================================================================
+    eda_filtered, eda_tonic, eda_phasic = None, None, None
+    eda_timestamps = None
+    if eda_data:
+        full_eda_values = np.array([e['EDA'] for e in eda_data])
+        eda_timestamps = np.array([e['TimeStamp'] for e in eda_data])
+        eda_filtered, eda_tonic, eda_phasic = preprocess_eda_global(full_eda_values, ORIGINAL_FS)
+
     # Przetwórz okna 5-sekundowe
     results = []
     window_end = WINDOW_SIZE
@@ -199,11 +213,24 @@ def process_video_data(video_physio: dict, video_annot: dict) -> pd.DataFrame:
             record['valence'] = np.nan
 
         # -----------------------------------------------------------------
-        # EDA: mean, std, max, peaks (tracisz piki stresu przy zwykłej średniej!)
+        # EDA: SCL (tonic mean), SCR peaks/amplitude/AUC (phasic)
+        # Pipeline: Global Filtering -> Tonic/Phasic Decomposition -> Window Aggregation
+        # Braithwaite et al. (2013): częstość SCR i amplituda = najrzetelniejsze wskaźniki
         # -----------------------------------------------------------------
-        window_eda = np.array([e['EDA'] for e in eda_data
-                               if window_start <= e['TimeStamp'] < window_end])
-        eda_features = compute_eda_features(window_eda, ORIGINAL_FS)
+        if eda_filtered is not None and eda_timestamps is not None:
+            i0 = np.searchsorted(eda_timestamps, window_start, side='left')
+            i1 = np.searchsorted(eda_timestamps, window_end, side='left')
+            window_filtered = eda_filtered[i0:i1]
+            window_tonic = eda_tonic[i0:i1]
+            window_phasic = eda_phasic[i0:i1]
+            eda_features = compute_eda_features(window_filtered, ORIGINAL_FS,
+                                                 tonic_values=window_tonic,
+                                                 phasic_values=window_phasic)
+        else:
+            eda_features = {
+                'eda_mean': np.nan, 'eda_std': np.nan, 'eda_max': np.nan,
+                'eda_peaks': 0, 'eda_scr_mean_amp': np.nan, 'eda_scr_auc': np.nan
+            }
         record.update(eda_features)
 
         # -----------------------------------------------------------------
@@ -294,7 +321,18 @@ def process_participant(pid: int) -> pd.DataFrame:
     if not all_results:
         return None
 
-    return pd.concat(all_results, ignore_index=True)
+    df = pd.concat(all_results, ignore_index=True)
+
+    # =================================================================
+    # Krok 4: Normalizacja wewnątrz-osobnicza EDA (Min-Max)
+    # Lykken & Venables (1971), Boucsein (2012)
+    # Normalizacja na poziomie uczestnika (nie wideo!) - bo porównujemy
+    # zakresy EDA danej osoby z całej sesji.
+    # =================================================================
+    df = normalize_eda_features_subject(df)
+    print(f"  Normalizacja osobnicza EDA: dodano kolumny *_norm")
+
+    return df
 
 
 def main():

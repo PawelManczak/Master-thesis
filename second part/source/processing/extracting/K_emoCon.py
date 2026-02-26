@@ -24,12 +24,12 @@ AGREGACJA SYGNAŁÓW DO OKIEN 5-SEKUNDOWYCH:
 ------------------------------------------
 | Sygnał | Problem ze średnią              | Funkcje agregujące                    |
 |--------|----------------------------------|---------------------------------------|
-| EDA    | Tracisz piki stresu (SCR)       | mean, std, max, peaks_count           |
+| EDA    | Tracisz piki stresu (SCR)       | SCL(tonic), SCR peaks/amp/AUC(phasic) |
 | BVP    | Średnia→0 (sygnał falowy!)      | std (amplituda), spectral_power       |
 | TEMP   | Zmienia się wolno, OK           | mean, slope (trend)                   |
 | ACC    | Średnia=grawitacja/pozycja      | mean (pozycja), std (ruch/drżenie)    |
 
-Output: seconds, arousal, valence, eda_mean, eda_std, eda_max, eda_peaks,
+Output: seconds, arousal, valence, eda_mean, eda_std, eda_max, eda_peaks, eda_scr_mean_amp, eda_scr_auc,
         bvp_std, bvp_spectral_power, temp_mean, temp_slope, acc_*, hr_mean, hr_std, hrv_*
 """
 
@@ -39,7 +39,9 @@ from pathlib import Path
 
 # Import wspólnych funkcji do obliczania cech
 from feature_utils import (
+    preprocess_eda_global,
     compute_eda_features,
+    normalize_eda_features_subject,
     compute_bvp_features,
     compute_temp_features,
     compute_acc_features,
@@ -88,30 +90,6 @@ def compute_global_hr_from_ibi_kemocon(ibi_df: pd.DataFrame, start_ts: float, ma
     return compute_global_hr_from_ibi(timestamps, ibi_values, start_ts + max_time_ms, ibi_unit='ms')
 
 
-def compute_hrv_window_features_kemocon(ibi_df: pd.DataFrame, window_start_ms: float, window_end_ms: float) -> dict:
-    """
-    Wrapper dla compute_hrv_window_features dla formatu K-EmoCon.
-
-    Args:
-        ibi_df: DataFrame z kolumnami 'timestamp' i 'value'
-        window_start_ms: początek okna (ms)
-        window_end_ms: koniec okna (ms)
-
-    Returns:
-        dict z metrykami HRV
-    """
-    if ibi_df is None or len(ibi_df) < 3:
-        return {
-            'hrv_sdnn': np.nan, 'hrv_rmssd': np.nan, 'hrv_pnn50': np.nan,
-            'hrv_lf_power': np.nan, 'hrv_hf_power': np.nan, 'hrv_lf_hf_ratio': np.nan
-        }
-
-    timestamps = ibi_df['timestamp'].values
-    ibi_values = ibi_df['value'].values  # IBI w ms
-
-    return compute_hrv_window_features(timestamps, ibi_values, window_start_ms, window_end_ms, ibi_unit='ms')
-
-
 # =============================================================================
 # FUNKCJE WCZYTYWANIA DANYCH
 # =============================================================================
@@ -146,73 +124,6 @@ def load_annotations(pid: int) -> pd.DataFrame:
     df = pd.read_csv(file_path)
     # Interesują nas tylko seconds, arousal i valence
     return df[['seconds', 'arousal', 'valence']]
-
-
-def compute_window_stats_df(df: pd.DataFrame, value_col: str, start_ms: float, end_ms: float) -> dict:
-    """
-    Oblicz statystyki dla okna czasowego.
-    Zwraca średnią i wariancję wartości.
-    """
-    mask = (df['timestamp'] >= start_ms) & (df['timestamp'] < end_ms)
-    window_data = df.loc[mask, value_col]
-
-    if len(window_data) == 0:
-        return {'mean': np.nan, 'var': np.nan}
-
-    return {
-        'mean': window_data.mean(),
-        'var': window_data.var()
-    }
-
-
-def get_ibi_in_window(df: pd.DataFrame, start_ms: float, end_ms: float) -> np.ndarray:
-    """Pobierz wartości IBI (w ms) dla okna czasowego."""
-    mask = (df['timestamp'] >= start_ms) & (df['timestamp'] < end_ms)
-    window_data = df.loc[mask]
-
-    if len(window_data) == 0:
-        return np.array([])
-
-    if 'value' in window_data.columns:
-        return window_data['value'].values
-    return np.array([])
-
-
-def compute_acc_window_stats(df: pd.DataFrame, start_ms: float, end_ms: float) -> dict:
-    """
-    Oblicz statystyki dla ACC (3 osie) w oknie czasowym.
-    ACC ma kolumny x, y, z zamiast value.
-    """
-    mask = (df['timestamp'] >= start_ms) & (df['timestamp'] < end_ms)
-    window_data = df.loc[mask]
-
-    if len(window_data) == 0:
-        return {
-            'acc_x_mean': np.nan, 'acc_x_var': np.nan,
-            'acc_y_mean': np.nan, 'acc_y_var': np.nan,
-            'acc_z_mean': np.nan, 'acc_z_var': np.nan,
-            'acc_magnitude_mean': np.nan, 'acc_magnitude_var': np.nan
-        }
-
-    result = {}
-    for axis in ['x', 'y', 'z']:
-        if axis in window_data.columns:
-            result[f'acc_{axis}_mean'] = window_data[axis].mean()
-            result[f'acc_{axis}_var'] = window_data[axis].var()
-        else:
-            result[f'acc_{axis}_mean'] = np.nan
-            result[f'acc_{axis}_var'] = np.nan
-
-    # Magnitude
-    if all(ax in window_data.columns for ax in ['x', 'y', 'z']):
-        magnitude = np.sqrt(window_data['x']**2 + window_data['y']**2 + window_data['z']**2)
-        result['acc_magnitude_mean'] = magnitude.mean()
-        result['acc_magnitude_var'] = magnitude.var()
-    else:
-        result['acc_magnitude_mean'] = np.nan
-        result['acc_magnitude_var'] = np.nan
-
-    return result
 
 
 def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
@@ -285,17 +196,72 @@ def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
         print(f"  Global Processing: obliczono przebieg HR ({len(hr_timeseries)} próbek)")
 
     # =================================================================
+    # GLOBAL PROCESSING: Dekompozycja EDA na składowe Tonic/Phasic
+    # Pipeline: filtr dolnoprzepustowy 1 Hz -> dekompozycja medianowa
+    # Greco et al. (2016), Benedek & Kaernbach (2010)
+    # =================================================================
+    eda_filtered, eda_tonic, eda_phasic = None, None, None
+    eda_ts = None
+    if 'EDA' in signals:
+        eda_df = signals['EDA']
+        full_eda = eda_df['value'].values
+        eda_ts = eda_df['timestamp'].values
+        eda_filtered, eda_tonic, eda_phasic = preprocess_eda_global(full_eda, FS_EDA)
+        print(f"  Global Processing: dekompozycja EDA (Tonic/Phasic, {len(full_eda)} próbek)")
+
+    # =================================================================
+    # PRZYGOTOWANIE: Wyciągnij numpy arrays RAZ przed pętlą
+    # Unikamy powtarzanego tworzenia masek DataFrame w każdej iteracji
+    # =================================================================
+    # BVP
+    bvp_ts, bvp_vals = None, None
+    if 'BVP' in signals:
+        bvp_ts = signals['BVP']['timestamp'].values
+        bvp_vals = signals['BVP']['value'].values
+
+    # TEMP
+    temp_ts, temp_vals = None, None
+    if 'TEMP' in signals:
+        temp_ts = signals['TEMP']['timestamp'].values
+        temp_vals = signals['TEMP']['value'].values
+
+    # ACC
+    acc_ts, acc_x_arr, acc_y_arr, acc_z_arr = None, None, None, None
+    if 'ACC' in signals and 'x' in signals['ACC'].columns:
+        acc_df = signals['ACC']
+        acc_ts = acc_df['timestamp'].values
+        acc_x_arr = acc_df['x'].values
+        acc_y_arr = acc_df['y'].values
+        acc_z_arr = acc_df['z'].values
+
+    # IBI (dla HRV)
+    ibi_ts, ibi_vals = None, None
+    if 'IBI' in signals:
+        ibi_ts = signals['IBI']['timestamp'].values
+        ibi_vals = signals['IBI']['value'].values
+
+    # Adnotacje jako numpy arrays (unikamy iterrows)
+    ann_seconds = annotations['seconds'].values
+    ann_arousal = annotations['arousal'].values
+    ann_valence = annotations['valence'].values
+
+    # Zwolnij DataFrames z pamięci — numpy arrays wystarczą do dalszego przetwarzania
+    del signals
+    del annotations
+
+    # =================================================================
     # LOCAL AGGREGATION: Okna 5-sekundowe
+    # Używamy np.searchsorted zamiast masek boolean (O(log n) vs O(n))
     # =================================================================
     results = []
+    n_windows = len(ann_seconds)
 
-    for _, row in annotations.iterrows():
-        seconds = row['seconds']
-        arousal = row['arousal']
-        valence = row['valence']
+    for i in range(n_windows):
+        seconds = ann_seconds[i]
+        arousal = ann_arousal[i]
+        valence = ann_valence[i]
 
         # Okno czasowe: [seconds-5, seconds) w sekundach, przekształcone na ms
-        # Samoocena w sekundzie X odpowiada oknu [X-5, X)
         window_start_ms = start_ts + (seconds - 5) * 1000
         window_end_ms = start_ts + seconds * 1000
 
@@ -306,25 +272,30 @@ def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
         }
 
         # -----------------------------------------------------------------
-        # EDA: mean, std, max, peaks (tracisz piki stresu przy zwykłej średniej!)
+        # EDA: SCL (tonic mean), SCR peaks/amplitude/AUC (phasic)
         # -----------------------------------------------------------------
-        if 'EDA' in signals:
-            eda_df = signals['EDA']
-            mask = (eda_df['timestamp'] >= window_start_ms) & (eda_df['timestamp'] < window_end_ms)
-            window_eda = eda_df.loc[mask, 'value'].values
-            eda_features = compute_eda_features(window_eda, FS_EDA)
+        if eda_ts is not None and eda_filtered is not None:
+            i0 = np.searchsorted(eda_ts, window_start_ms, side='left')
+            i1 = np.searchsorted(eda_ts, window_end_ms, side='left')
+            eda_features = compute_eda_features(
+                eda_filtered[i0:i1], FS_EDA,
+                tonic_values=eda_tonic[i0:i1],
+                phasic_values=eda_phasic[i0:i1]
+            )
             record.update(eda_features)
         else:
-            record.update({'eda_mean': np.nan, 'eda_std': np.nan, 'eda_max': np.nan, 'eda_peaks': 0})
+            record.update({
+                'eda_mean': np.nan, 'eda_std': np.nan, 'eda_max': np.nan,
+                'eda_peaks': 0, 'eda_scr_mean_amp': np.nan, 'eda_scr_auc': np.nan
+            })
 
         # -----------------------------------------------------------------
-        # BVP: std (amplituda), spectral_power (NIE średnia - sygnał falowy!)
+        # BVP: std (amplituda), spectral_power (NIE średnia!)
         # -----------------------------------------------------------------
-        if 'BVP' in signals:
-            bvp_df = signals['BVP']
-            mask = (bvp_df['timestamp'] >= window_start_ms) & (bvp_df['timestamp'] < window_end_ms)
-            window_bvp = bvp_df.loc[mask, 'value'].values
-            bvp_features = compute_bvp_features(window_bvp, FS_BVP)
+        if bvp_ts is not None:
+            i0 = np.searchsorted(bvp_ts, window_start_ms, side='left')
+            i1 = np.searchsorted(bvp_ts, window_end_ms, side='left')
+            bvp_features = compute_bvp_features(bvp_vals[i0:i1], FS_BVP)
             record.update(bvp_features)
         else:
             record.update({'bvp_std': np.nan, 'bvp_peak_to_peak': np.nan, 'bvp_spectral_power': np.nan})
@@ -332,12 +303,10 @@ def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
         # -----------------------------------------------------------------
         # TEMP: mean, slope (zmienia się wolno)
         # -----------------------------------------------------------------
-        if 'TEMP' in signals:
-            temp_df = signals['TEMP']
-            mask = (temp_df['timestamp'] >= window_start_ms) & (temp_df['timestamp'] < window_end_ms)
-            window_temp = temp_df.loc[mask, 'value'].values
-            window_temp_ts = temp_df.loc[mask, 'timestamp'].values
-            temp_features = compute_temp_features(window_temp, window_temp_ts)
+        if temp_ts is not None:
+            i0 = np.searchsorted(temp_ts, window_start_ms, side='left')
+            i1 = np.searchsorted(temp_ts, window_end_ms, side='left')
+            temp_features = compute_temp_features(temp_vals[i0:i1], temp_ts[i0:i1])
             record.update(temp_features)
         else:
             record.update({'temp_mean': np.nan, 'temp_slope': np.nan})
@@ -345,14 +314,12 @@ def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
         # -----------------------------------------------------------------
         # ACC: mean (pozycja ciała), std (intensywność ruchu)
         # -----------------------------------------------------------------
-        if 'ACC' in signals and 'x' in signals['ACC'].columns:
-            acc_df = signals['ACC']
-            mask = (acc_df['timestamp'] >= window_start_ms) & (acc_df['timestamp'] < window_end_ms)
-            window_acc = acc_df.loc[mask]
-            acc_x = window_acc['x'].values if 'x' in window_acc.columns else np.array([])
-            acc_y = window_acc['y'].values if 'y' in window_acc.columns else np.array([])
-            acc_z = window_acc['z'].values if 'z' in window_acc.columns else np.array([])
-            acc_features = compute_acc_features(acc_x, acc_y, acc_z)
+        if acc_ts is not None:
+            i0 = np.searchsorted(acc_ts, window_start_ms, side='left')
+            i1 = np.searchsorted(acc_ts, window_end_ms, side='left')
+            acc_features = compute_acc_features(
+                acc_x_arr[i0:i1], acc_y_arr[i0:i1], acc_z_arr[i0:i1]
+            )
             record.update(acc_features)
         else:
             record.update({
@@ -371,14 +338,35 @@ def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
         # -----------------------------------------------------------------
         # HRV: metryki zmienności rytmu z IBI (sdnn, rmssd, pnn50, lf/hf)
         # -----------------------------------------------------------------
-        hrv_features = compute_hrv_window_features_kemocon(
-            signals.get('IBI'), window_start_ms, window_end_ms
-        )
+        if ibi_ts is not None:
+            hrv_features = compute_hrv_window_features(
+                ibi_ts, ibi_vals, window_start_ms, window_end_ms, ibi_unit='ms'
+            )
+        else:
+            hrv_features = {
+                'hrv_sdnn': np.nan, 'hrv_rmssd': np.nan, 'hrv_pnn50': np.nan,
+                'hrv_lf_power': np.nan, 'hrv_hf_power': np.nan, 'hrv_lf_hf_ratio': np.nan
+            }
         record.update(hrv_features)
 
         results.append(record)
 
-    return pd.DataFrame(results)
+        if (i + 1) % 50 == 0:
+            print(f"    Okno {i+1}/{n_windows}", flush=True)
+
+    if not results:
+        return None
+
+    df = pd.DataFrame(results)
+
+    # =================================================================
+    # Krok 4: Normalizacja wewnątrz-osobnicza EDA (Min-Max)
+    # Lykken & Venables (1971), Boucsein (2012)
+    # =================================================================
+    df = normalize_eda_features_subject(df)
+    print(f"  Normalizacja osobnicza EDA: dodano kolumny *_norm")
+
+    return df
 
 
 def main():

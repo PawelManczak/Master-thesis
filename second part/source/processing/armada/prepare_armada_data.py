@@ -60,9 +60,9 @@ SCALE_RANGES = {
 #   medium (0.25-0.75): umiarkowane pobudzenie (codzienna czujność, koncentracja)
 #   high (0.75-1.00): wysokie pobudzenie (eksytacja lub stres, zależnie od valence)
 DISCRETIZE_THRESHOLDS = {
-    'low': (0, 0.25),
-    'medium': (0.25, 0.75),
-    'high': (0.75, 1.0)
+    'low': (0, 0.33),
+    'medium': (0.33, 0.66),
+    'high': (0.66, 1.0)
 }
 
 # Progi dyskretyzacji dla EDA (znormalizowanego osobniczo do [0,1])
@@ -81,15 +81,34 @@ EDA_THRESHOLDS = {
 
 # Zmienne fizjologiczne do dyskretyzacji (użyjemy percentyli)
 # Zaktualizowane nazwy zgodnie z nową metodologią "Global Processing, Local Aggregation"
-PHYSIO_VARIABLES = ['eda_mean', 'hr_mean', 'temp_mean', 'hrv_rmssd', 'hrv_sdnn']
+# EDA (6 cech z pipeline 5-krokowego):
+#   eda_mean     - SCL, średni poziom toniczny (Skin Conductance Level)
+#   eda_std      - zmienność składowej fazowej (SCR variability)
+#   eda_max      - maksimum sygnału w oknie
+#   eda_peaks    - liczba pików SCR (najrzetelniejszy wskaźnik arousal wg Braithwaite et al.)
+#   eda_scr_mean_amp - średnia amplituda pików SCR
+#   eda_scr_auc  - AUC składowej fazowej (łączna aktywność elektrodermalna)
+PHYSIO_VARIABLES = [
+    'eda_mean', 'eda_std', 'eda_max', 'eda_peaks', 'eda_scr_mean_amp', 'eda_scr_auc',
+    'hr_mean', 'temp_mean', 'hrv_rmssd', 'hrv_sdnn'
+]
 
 # Zmienne wymagające normalizacji osobniczej (min-max per uczestnik)
 # zamiast tercyli - zgodnie z zaleceniami psychofizjologicznymi (Birmingham EDA guide)
-PERSONAL_NORM_VARIABLES = ['eda_mean']
+# Wszystkie cechy EDA wymagają normalizacji osobniczej, bo poziom przewodnictwa
+# jest silnie osobniczy (grubość skóry, liczba gruczołów) - Boucsein (2012)
+PERSONAL_NORM_VARIABLES = [
+    'eda_mean', 'eda_std', 'eda_max', 'eda_peaks', 'eda_scr_mean_amp', 'eda_scr_auc'
+]
 
 # Mapowanie nazw kolumn na czytelne nazwy stanów
 VARIABLE_NAME_MAPPING = {
     'eda_mean': 'eda',
+    'eda_std': 'eda_std',
+    'eda_max': 'eda_max',
+    'eda_peaks': 'eda_peaks',
+    'eda_scr_mean_amp': 'eda_scr_amp',
+    'eda_scr_auc': 'eda_scr_auc',
     'hr_mean': 'hr',
     'temp_mean': 'temp',
     'hrv_rmssd': 'hrv_rmssd',
@@ -309,7 +328,12 @@ def process_participant_data(
             if var in PERSONAL_NORM_VARIABLES:
                 # Normalizacja osobnicza (min-max) dla EDA
                 # Zgodnie z Birmingham EDA guide i literaturą (Boucsein, Horvers et al.)
-                df[f'{var}_norm'] = normalize_personal_minmax(df, var)
+                # Jeśli normalizacja została już wykonana w pipeline ekstrakcji cech
+                # (feature_utils.normalize_eda_features_subject), użyj gotowej kolumny
+                if f'{var}_norm' in df.columns:
+                    pass  # Kolumna *_norm już istnieje z etapu ekstrakcji
+                else:
+                    df[f'{var}_norm'] = normalize_personal_minmax(df, var)
 
                 # Użyj stałych progów EDA_THRESHOLDS dla znormalizowanej zmiennej
                 intervals = extract_state_intervals(df, f'{var}_norm', EDA_THRESHOLDS)
