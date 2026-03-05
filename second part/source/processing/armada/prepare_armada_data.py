@@ -81,16 +81,24 @@ EDA_THRESHOLDS = {
 
 # Zmienne fizjologiczne do dyskretyzacji (użyjemy percentyli)
 # Zaktualizowane nazwy zgodnie z nową metodologią "Global Processing, Local Aggregation"
-# EDA (6 cech z pipeline 5-krokowego):
+# EDA (6 cech z pipeline NeuroKit2):
 #   eda_mean     - SCL, średni poziom toniczny (Skin Conductance Level)
 #   eda_std      - zmienność składowej fazowej (SCR variability)
 #   eda_max      - maksimum sygnału w oknie
 #   eda_peaks    - liczba pików SCR (najrzetelniejszy wskaźnik arousal wg Braithwaite et al.)
 #   eda_scr_mean_amp - średnia amplituda pików SCR
 #   eda_scr_auc  - AUC składowej fazowej (łączna aktywność elektrodermalna)
+# HRV (NeuroKit2 nk.hrv_time + nk.hrv_frequency):
+#   Time domain:  hrv_sdnn, hrv_rmssd, hrv_pnn50, hrv_pnn20, hrv_cvnn, hrv_cvsd, …
+#   Freq domain:  hrv_lf, hrv_hf, hrv_vlf, hrv_lf_hf_ratio, hrv_lfn, hrv_hfn, hrv_lnhf
 PHYSIO_VARIABLES = [
     'eda_mean', 'eda_std', 'eda_max', 'eda_peaks', 'eda_scr_mean_amp', 'eda_scr_auc',
-    'hr_mean', 'temp_mean', 'hrv_rmssd', 'hrv_sdnn'
+    'hr_mean', 'temp_mean',
+    # HRV time domain
+    'hrv_sdnn', 'hrv_rmssd', 'hrv_pnn50', 'hrv_pnn20',
+    'hrv_cvnn', 'hrv_cvsd',
+    # HRV frequency domain
+    'hrv_lf_hf_ratio', 'hrv_lfn', 'hrv_hfn',
 ]
 
 # Zmienne wymagające normalizacji osobniczej (min-max per uczestnik)
@@ -111,8 +119,18 @@ VARIABLE_NAME_MAPPING = {
     'eda_scr_auc': 'eda_scr_auc',
     'hr_mean': 'hr',
     'temp_mean': 'temp',
-    'hrv_rmssd': 'hrv_rmssd',
+    # HRV time domain
     'hrv_sdnn': 'hrv_sdnn',
+    'hrv_rmssd': 'hrv_rmssd',
+    'hrv_pnn50': 'hrv_pnn50',
+    'hrv_pnn20': 'hrv_pnn20',
+    'hrv_cvnn': 'hrv_cvnn',
+    'hrv_cvsd': 'hrv_cvsd',
+    # HRV frequency domain
+    'hrv_lf_hf_ratio': 'hrv_lf_hf',
+    'hrv_lfn': 'hrv_lfn',
+    'hrv_hfn': 'hrv_hfn',
+    # Emocje
     'arousal_norm': 'arousal',
     'valence_norm': 'valence'
 }

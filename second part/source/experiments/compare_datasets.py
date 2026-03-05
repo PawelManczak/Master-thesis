@@ -34,19 +34,23 @@ from armada_algorithm import ARMADA
 # ============================================================================
 # PARAMETRY EKSPERYMENTU
 # ============================================================================
-MINSUP = 0.5         # 50% uczestników musi mieć wzorzec
-MINCONF = 0.5        # 50% ufność dla reguł
-MAXGAP = 20           # 30 sekund maksymalna przerwa
-MAX_PATTERN_SIZE = 3  # wzorce do 3 stanów
+MINSUP = 0.3         # 50% uczestników musi mieć wzorzec
+MINCONF = 0.3        # 50% ufność dla reguł
+MAXGAP = 15           # 30 sekund maksymalna przerwa
+MAX_PATTERN_SIZE = 2  # wzorce do 3 stanów
 
 # ============================================================================
 # FILTRY REGUŁ
 # ============================================================================
-# Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany są związane z BVP (wszystkie metryki bvp_*)
+# Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany są związane z BVP (wszystkie metryki bvp_*, hrv_*, hr_*)
 FILTER_BVP_ONLY = True
 
-# Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany są związane z EDA (eda, eda_scr_amp, eda_scr_auc)
+# Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany są związane z EDA (eda, eda_scr_amp, eda_scr_auc, …)
 FILTER_EDA_ONLY = True
+
+# Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany to sygnały peryferyjne (EDA + BVP/HRV/HR)
+# bez arousal, valence, temp — odrzuca np. "eda_scr_amp_low => ... hr_medium"
+FILTER_PHYSIO_CROSS = False
 
 # Jeśli True - odrzuca reguły gdzie wszystkie stany dotyczą tej samej cechy (np. tylko arousal_low, arousal_high)
 FILTER_SINGLE_FEATURE = True
@@ -62,25 +66,27 @@ EDA_PREFIXES = (
     'eda',            # SCL - skin conductance level (tonic mean) - NA KOŃCU (najkrótszy prefix)
 )
 
-# Wszystkie prefiksy metryk BVP (pochodne z Blood Volume Pulse)
-# Obejmuje zarówno bvp_* jak i hrv_* (HRV = Heart Rate Variability, liczone z IBI/BVP)
+# Wszystkie prefiksy metryk BVP/HRV (pochodne z Blood Volume Pulse / IBI)
+# HR jest również pochodną BVP (obliczane z IBI = inter-beat intervals z BVP)
+# HRV obliczane za pomocą NeuroKit2 (nk.hrv_time + nk.hrv_frequency)
 BVP_PREFIXES = (
-    # Metryki BVP
-    'bvp_sdnn',      # odchylenie standardowe IBI
-    'bvp_rmssd',     # root mean square of successive differences
-    'bvp_pnn50',     # procent różnic IBI > 50ms
-    'bvp_mean_hr',   # średnie tętno
-    'bvp_mean_ibi',  # średnie IBI
-    'bvp_lf_power',  # moc w paśmie LF
-    'bvp_hf_power',  # moc w paśmie HF
-    'bvp_lf_hf_ratio',  # stosunek LF/HF
-    # Metryki HRV (również pochodne z BVP/IBI)
-    'hrv_sdnn',      # odchylenie standardowe IBI
-    'hrv_rmssd',     # root mean square of successive differences
-    'hrv_pnn50',     # procent różnic IBI > 50ms
-    'hrv_lf_power',  # moc w paśmie LF
-    'hrv_hf_power',  # moc w paśmie HF
-    'hrv_lf_hf_ratio'  # stosunek LF/HF
+    # Metryki BVP surowe
+    'bvp_std',        # amplituda BVP
+    'bvp_peak_to_peak',
+    'bvp_spectral_power',
+    # HRV Time Domain (nk.hrv_time)
+    'hrv_sdnn',       # odchylenie standardowe NN
+    'hrv_rmssd',      # root mean square of successive differences
+    'hrv_pnn50',      # % różnic > 50ms
+    'hrv_pnn20',      # % różnic > 20ms
+    'hrv_cvnn',       # SDNN/MeanNN - współczynnik zmienności
+    'hrv_cvsd',       # RMSSD/MeanNN - znormalizowany RMSSD
+    # HRV Frequency Domain (nk.hrv_frequency)
+    'hrv_lf_hf',      # stosunek LF/HF
+    'hrv_lfn',        # znormalizowane LF
+    'hrv_hfn',        # znormalizowane HF
+    # HR (pochodna z BVP/IBI — mean i std tętna)
+    'hr_',             # hr_low/hr_medium/hr_high (z podkreślnikiem, żeby nie matchować hrv_*)
 )
 
 
@@ -146,6 +152,38 @@ def is_eda_only_rule(rule_signature: str) -> bool:
     return True
 
 
+def is_physio_cross_rule(rule_signature: str) -> bool:
+    """
+    Sprawdza czy reguła zawiera TYLKO stany sygnałów peryferyjnych (EDA + BVP/HRV/HR)
+    bez arousal, valence, temp.
+
+    Odrzuca np. "eda_scr_amp_low => ... hr_medium" (EDA + BVP mix)
+    Przepuszcza np. "arousal_low => ... hrv_sdnn_low" (emocja + fizjologia)
+    """
+    clean_sig = rule_signature.replace('=>', ' ').replace('AND', ' ')
+    clean_sig = clean_sig.replace('equals', ' ').replace('before', ' ')
+    clean_sig = clean_sig.replace('meets', ' ').replace('overlaps', ' ')
+    clean_sig = clean_sig.replace('contains', ' ').replace('starts', ' ')
+    clean_sig = clean_sig.replace('is-finished-by', ' ')
+    clean_sig = clean_sig.replace('(', '').replace(')', '')
+
+    tokens = [t.strip() for t in clean_sig.split() if t.strip()]
+    states = [t for t in tokens if '_' in t]
+
+    if not states:
+        return False
+
+    # Sprawdź czy KAŻDY stan to EDA lub BVP/HRV/HR
+    for state in states:
+        is_eda = any(state.startswith(prefix) for prefix in EDA_PREFIXES)
+        is_bvp = any(state.startswith(prefix) for prefix in BVP_PREFIXES)
+        if not (is_eda or is_bvp):
+            # Ten stan to arousal/valence/temp — reguła NIE jest czysto-fizjologiczna
+            return False
+
+    return True
+
+
 def is_single_feature_rule(rule_signature: str) -> bool:
     """
     Sprawdza czy reguła zawiera tylko jedną cechę (np. tylko arousal).
@@ -184,6 +222,7 @@ def filter_rules(
     rules: Set[str],
     filter_bvp_only: bool = FILTER_BVP_ONLY,
     filter_eda_only: bool = FILTER_EDA_ONLY,
+    filter_physio_cross: bool = FILTER_PHYSIO_CROSS,
     filter_single_feature: bool = FILTER_SINGLE_FEATURE
 ) -> Set[str]:
     """
@@ -191,8 +230,9 @@ def filter_rules(
 
     Args:
         rules: Zbiór sygnatur reguł
-        filter_bvp_only: Czy odrzucać reguły tylko z BVP
-        filter_eda_only: Czy odrzucać reguły tylko z EDA (eda, eda_scr_amp, eda_scr_auc)
+        filter_bvp_only: Czy odrzucać reguły tylko z BVP/HRV/HR
+        filter_eda_only: Czy odrzucać reguły tylko z EDA
+        filter_physio_cross: Czy odrzucać reguły czysto-fizjologiczne (EDA+BVP mix bez emocji/temp)
         filter_single_feature: Czy odrzucać reguły z jedną cechą
 
     Returns:
@@ -205,6 +245,8 @@ def filter_rules(
         if filter_bvp_only and is_bvp_only_rule(rule):
             continue
         if filter_eda_only and is_eda_only_rule(rule):
+            continue
+        if filter_physio_cross and is_physio_cross_rule(rule):
             continue
         if filter_single_feature and is_single_feature_rule(rule):
             continue
@@ -450,8 +492,9 @@ def generate_markdown_report(
     lines.append("")
     lines.append("## Filtry reguł")
     lines.append("")
-    lines.append(f"- **FILTER_BVP_ONLY**: {FILTER_BVP_ONLY} - {'odrzuca reguły zawierające tylko stany BVP' if FILTER_BVP_ONLY else 'wyłączony'}")
+    lines.append(f"- **FILTER_BVP_ONLY**: {FILTER_BVP_ONLY} - {'odrzuca reguły zawierające tylko stany BVP/HRV/HR' if FILTER_BVP_ONLY else 'wyłączony'}")
     lines.append(f"- **FILTER_EDA_ONLY**: {FILTER_EDA_ONLY} - {'odrzuca reguły zawierające tylko stany EDA' if FILTER_EDA_ONLY else 'wyłączony'}")
+    lines.append(f"- **FILTER_PHYSIO_CROSS**: {FILTER_PHYSIO_CROSS} - {'odrzuca reguły czysto-fizjologiczne (EDA+BVP mix bez emocji/temp)' if FILTER_PHYSIO_CROSS else 'wyłączony'}")
     lines.append(f"- **FILTER_SINGLE_FEATURE**: {FILTER_SINGLE_FEATURE} - {'odrzuca reguły z jedną cechą (np. tylko arousal)' if FILTER_SINGLE_FEATURE else 'wyłączony'}")
     lines.append("")
 
@@ -562,7 +605,7 @@ def main():
     print("=" * 80)
     print(f"Data: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"Parametry: minsup={MINSUP}, minconf={MINCONF}, maxgap={MAXGAP}, max_size={MAX_PATTERN_SIZE}")
-    print(f"Filtry reguł: FILTER_BVP_ONLY={FILTER_BVP_ONLY}, FILTER_EDA_ONLY={FILTER_EDA_ONLY}, FILTER_SINGLE_FEATURE={FILTER_SINGLE_FEATURE}")
+    print(f"Filtry reguł: FILTER_BVP_ONLY={FILTER_BVP_ONLY}, FILTER_EDA_ONLY={FILTER_EDA_ONLY}, FILTER_PHYSIO_CROSS={FILTER_PHYSIO_CROSS}, FILTER_SINGLE_FEATURE={FILTER_SINGLE_FEATURE}")
     print(f"Wyniki: {OUTPUT_DIR}")
     print()
 
@@ -615,7 +658,7 @@ def main():
     filtered_rules_signatures = {}
     for ds_name, rules_set in rules_signatures.items():
         original_count = len(rules_set)
-        filtered = filter_rules(rules_set, FILTER_BVP_ONLY, FILTER_EDA_ONLY, FILTER_SINGLE_FEATURE)
+        filtered = filter_rules(rules_set, FILTER_BVP_ONLY, FILTER_EDA_ONLY, FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
         filtered_rules_signatures[ds_name] = filtered
         removed = original_count - len(filtered)
         if removed > 0:
@@ -658,6 +701,7 @@ def main():
         "filters": {
             "filter_bvp_only": FILTER_BVP_ONLY,
             "filter_eda_only": FILTER_EDA_ONLY,
+            "filter_physio_cross": FILTER_PHYSIO_CROSS,
             "filter_single_feature": FILTER_SINGLE_FEATURE
         },
         "datasets": {},

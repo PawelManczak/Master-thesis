@@ -61,6 +61,7 @@ from feature_utils import (
     compute_hr_window_features,
     compute_hrv_window_features
 )
+from bvp_utils import _empty_hrv_result
 
 BASE_DIR = Path(__file__).parent.parent.parent.parent  # extracting -> processing -> source -> second part
 CEAP_DIR = BASE_DIR / "data" / "CEAP" / "raw" / "CEAP-360VR-Dataset-master" / "CEAP-360VR"
@@ -129,10 +130,7 @@ def compute_hrv_window_features_ceap(ibi_data: list, window_start: float, window
         dict z metrykami HRV
     """
     if not ibi_data:
-        return {
-            'hrv_sdnn': np.nan, 'hrv_rmssd': np.nan, 'hrv_pnn50': np.nan,
-            'hrv_lf_power': np.nan, 'hrv_hf_power': np.nan, 'hrv_lf_hf_ratio': np.nan
-        }
+        return _empty_hrv_result()
 
     timestamps = np.array([d['TimeStamp'] for d in ibi_data])
     ibi_values = np.array([d['IBI'] for d in ibi_data])  # IBI w sekundach

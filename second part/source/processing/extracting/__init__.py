@@ -10,7 +10,9 @@ from .bvp_utils import (
     compute_ibi_from_bvp,
     compute_hr_from_bvp,
     antialiasing_filter,
-    compute_window_stats
+    compute_window_stats,
+    HRV_KEYS,
+    _empty_hrv_result
 )
 
 __all__ = [
@@ -20,6 +22,8 @@ __all__ = [
     'compute_ibi_from_bvp',
     'compute_hr_from_bvp',
     'antialiasing_filter',
-    'compute_window_stats'
+    'compute_window_stats',
+    'HRV_KEYS',
+    '_empty_hrv_result'
 ]
 

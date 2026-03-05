@@ -49,6 +49,7 @@ from feature_utils import (
     compute_hr_window_features,
     compute_hrv_window_features
 )
+from bvp_utils import _empty_hrv_result
 
 # Ścieżki
 BASE_DIR = Path(__file__).parent.parent.parent.parent  # extracting -> processing -> source -> second part
@@ -343,10 +344,7 @@ def process_participant(e4_folder: str, pid: int) -> pd.DataFrame:
                 ibi_ts, ibi_vals, window_start_ms, window_end_ms, ibi_unit='ms'
             )
         else:
-            hrv_features = {
-                'hrv_sdnn': np.nan, 'hrv_rmssd': np.nan, 'hrv_pnn50': np.nan,
-                'hrv_lf_power': np.nan, 'hrv_hf_power': np.nan, 'hrv_lf_hf_ratio': np.nan
-            }
+            hrv_features = _empty_hrv_result()
         record.update(hrv_features)
 
         results.append(record)

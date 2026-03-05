@@ -46,7 +46,7 @@ from typing import Tuple
 
 import neurokit2 as nk
 
-from bvp_utils import compute_metrics_from_ibi
+from bvp_utils import compute_metrics_from_ibi, HRV_KEYS, _empty_hrv_result
 
 
 # =============================================================================
@@ -680,7 +680,11 @@ def compute_hrv_window_features(
     ibi_unit: str = 'ms'
 ) -> dict:
     """
-    Oblicz metryki HRV z IBI w oknie czasowym.
+    Oblicz metryki HRV z IBI w oknie czasowym za pomocą NeuroKit2.
+
+    Zwraca pełny zestaw metryk z nk.hrv_time() i nk.hrv_frequency():
+    - Time domain: SDNN, RMSSD, pNN50, pNN20, MeanNN, MedianNN, CVNN, CVSD, …
+    - Frequency domain: LF, HF, VLF, LF/HF, LFn, HFn, LnHF
 
     Args:
         ibi_timestamps: znaczniki czasowe IBI
@@ -690,42 +694,23 @@ def compute_hrv_window_features(
         ibi_unit: 'ms' lub 's'
 
     Returns:
-        dict z metrykami HRV: hrv_sdnn, hrv_rmssd, hrv_pnn50, hrv_lf_power, hrv_hf_power, hrv_lf_hf_ratio
+        dict z metrykami HRV (patrz bvp_utils.HRV_KEYS)
     """
-    empty_result = {
-        'hrv_sdnn': np.nan,
-        'hrv_rmssd': np.nan,
-        'hrv_pnn50': np.nan,
-        'hrv_lf_power': np.nan,
-        'hrv_hf_power': np.nan,
-        'hrv_lf_hf_ratio': np.nan
-    }
-
     if len(ibi_timestamps) < 3:
-        return empty_result
+        return _empty_hrv_result()
 
     ibi_timestamps = np.array(ibi_timestamps)
     ibi_values = np.array(ibi_values)
 
-    # Pobierz IBI w oknie (O(log n) zamiast O(n))
+    # Pobierz IBI w oknie (O(log n))
     i0 = np.searchsorted(ibi_timestamps, window_start, side='left')
     i1 = np.searchsorted(ibi_timestamps, window_end, side='left')
     window_ibi = ibi_values[i0:i1]
 
     if len(window_ibi) < 3:
-        return empty_result
+        return _empty_hrv_result()
 
-    # Użyj funkcji z bvp_utils
-    metrics = compute_metrics_from_ibi(window_ibi, ibi_unit=ibi_unit)
-
-    return {
-        'hrv_sdnn': metrics.get('bvp_sdnn', np.nan),
-        'hrv_rmssd': metrics.get('bvp_rmssd', np.nan),
-        'hrv_pnn50': metrics.get('bvp_pnn50', np.nan),
-        'hrv_lf_power': metrics.get('bvp_lf_power', np.nan),
-        'hrv_hf_power': metrics.get('bvp_hf_power', np.nan),
-        'hrv_lf_hf_ratio': metrics.get('bvp_lf_hf_ratio', np.nan)
-    }
+    return compute_metrics_from_ibi(window_ibi, ibi_unit=ibi_unit)
 
 
 def compute_hrv_from_ecg_window(
@@ -736,7 +721,9 @@ def compute_hrv_from_ecg_window(
     window_end: float
 ) -> dict:
     """
-    Oblicz metryki HRV z pików R ECG w oknie czasowym.
+    Oblicz metryki HRV z pików R ECG w oknie czasowym za pomocą NeuroKit2.
+
+    Zwraca pełny zestaw metryk z nk.hrv_time() i nk.hrv_frequency().
 
     Args:
         r_peaks: indeksy pików R
@@ -746,19 +733,10 @@ def compute_hrv_from_ecg_window(
         window_end: koniec okna
 
     Returns:
-        dict z metrykami HRV
+        dict z metrykami HRV (patrz bvp_utils.HRV_KEYS)
     """
-    empty_result = {
-        'hrv_sdnn': np.nan,
-        'hrv_rmssd': np.nan,
-        'hrv_pnn50': np.nan,
-        'hrv_lf_power': np.nan,
-        'hrv_hf_power': np.nan,
-        'hrv_lf_hf_ratio': np.nan
-    }
-
     if len(r_peaks) < 3:
-        return empty_result
+        return _empty_hrv_result()
 
     # Znajdź piki R w oknie (O(log n))
     peak_times = time_data[r_peaks]
@@ -767,7 +745,7 @@ def compute_hrv_from_ecg_window(
     window_peaks = r_peaks[i0:i1]
 
     if len(window_peaks) < 3:
-        return empty_result
+        return _empty_hrv_result()
 
     # Oblicz RR intervals w oknie (ms)
     rr_intervals = np.diff(window_peaks) / fs * 1000
@@ -776,17 +754,7 @@ def compute_hrv_from_ecg_window(
     valid_rr = rr_intervals[(rr_intervals > 300) & (rr_intervals < 2000)]
 
     if len(valid_rr) < 3:
-        return empty_result
+        return _empty_hrv_result()
 
-    # Użyj funkcji z bvp_utils
-    metrics = compute_metrics_from_ibi(valid_rr, ibi_unit='ms')
-
-    return {
-        'hrv_sdnn': metrics.get('bvp_sdnn', np.nan),
-        'hrv_rmssd': metrics.get('bvp_rmssd', np.nan),
-        'hrv_pnn50': metrics.get('bvp_pnn50', np.nan),
-        'hrv_lf_power': metrics.get('bvp_lf_power', np.nan),
-        'hrv_hf_power': metrics.get('bvp_hf_power', np.nan),
-        'hrv_lf_hf_ratio': metrics.get('bvp_lf_hf_ratio', np.nan)
-    }
+    return compute_metrics_from_ibi(valid_rr, ibi_unit='ms')
 
