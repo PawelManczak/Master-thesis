@@ -2,22 +2,22 @@
 """
 ARMADA - Association Rule Mining Algorithm for Temporal Databases
 
-Implementacja algorytmu ARMADA do odkrywania bogatszych reguł asocjacyjnych
-z danych temporalnych (interval-based time series).
+Implementation of the ARMADA algorithm for discovering richer association rules
+from temporal data (interval-based time series).
 
-Oparte na:
+Based on:
 Winarko, E., & Roddick, J. F. (2007). ARMADA–An algorithm for discovering
 richer relative temporal association rules from interval-based data.
 Data & Knowledge Engineering, 63(1), 76-90.
 
-Relacje Allena (znormalizowane - 7 z 13):
-- before (b): A kończy się przed rozpoczęciem B
-- meets (m): A kończy się dokładnie gdy B się zaczyna
-- overlaps (o): A zaczyna się przed B, ale kończy w trakcie B
-- is-finished-by (fi): A zaczyna się przed B i kończy gdy B się kończy
-- contains (c): A zaczyna się przed B i kończy po B
-- equals (=): A i B mają te same czasy
-- starts (s): A zaczyna się gdy B, ale kończy wcześniej
+Allen's relations (normalized - 7 out of 13):
+- before (b): A ends before B starts
+- meets (m): A ends exactly when B starts
+- overlaps (o): A starts before B, but ends during B
+- is-finished-by (fi): A starts before B and ends when B ends
+- contains (c): A starts before B and ends after B
+- equals (=): A and B have the same times
+- starts (s): A starts when B starts, but ends earlier
 """
 
 import pandas as pd
@@ -29,7 +29,7 @@ from pathlib import Path
 import json
 from copy import deepcopy
 
-# Relacje Allena (znormalizowane)
+# Allen's relations (normalized)
 ALLEN_RELATIONS = {
     'b': 'before',
     'm': 'meets',
@@ -43,7 +43,7 @@ ALLEN_RELATIONS = {
 
 @dataclass
 class StateInterval:
-    """Reprezentuje interwał stanu (b, s, f) gdzie b=start, s=state, f=end."""
+    """Represents a state interval (b, s, f) where b=start, s=state, f=end."""
     state: str
     start_time: float
     end_time: float
@@ -59,7 +59,7 @@ class StateInterval:
                 self.end_time == other.end_time)
 
     def __lt__(self, other):
-        """Porządkowanie: start_time, end_time, state."""
+        """Ordering: start_time, end_time, state."""
         if self.start_time != other.start_time:
             return self.start_time < other.start_time
         if self.end_time != other.end_time:
@@ -70,22 +70,22 @@ class StateInterval:
 @dataclass
 class TemporalPattern:
     """
-    Wzorzec czasowy definiowany jako para (s, M) gdzie:
-    - s: mapowanie indeksów do stanów
-    - M: macierz relacji między interwałami
+    Temporal pattern defined as a pair (s, M) where:
+    - s: index to states mapping
+    - M: interval relation matrix
     """
-    states: List[str]  # Lista stanów w porządku
-    relations_matrix: List[List[str]]  # Macierz relacji n x n
+    states: List[str]  # List of states in order
+    relations_matrix: List[List[str]]  # n x n relation matrix
     support: float = 0.0
     support_count: int = 0
 
     @property
     def dim(self) -> int:
-        """Wymiar wzorca (liczba interwałów)."""
+        """Pattern dimension (number of intervals)."""
         return len(self.states)
 
     def __hash__(self):
-        # Konwertuj macierz do tuple dla hashowania
+        # Convert matrix to tuple for hashing
         matrix_tuple = tuple(tuple(row) for row in self.relations_matrix)
         return hash((tuple(self.states), matrix_tuple))
 
@@ -96,7 +96,7 @@ class TemporalPattern:
                 self.relations_matrix == other.relations_matrix)
 
     def to_string(self) -> str:
-        """Konwertuje wzorzec do czytelnej postaci tekstowej."""
+        """Converts pattern to human-readable text."""
         if self.dim == 1:
             return f"<{self.states[0]}>"
 
@@ -115,7 +115,7 @@ class TemporalPattern:
         return "\n".join(parts)
 
     def get_relation_description(self) -> str:
-        """Zwraca opis relacji w formie czytelnej."""
+        """Returns relation description in human-readable form."""
         if self.dim == 1:
             return f"({self.states[0]})"
 
@@ -131,7 +131,7 @@ class TemporalPattern:
 
 @dataclass
 class TemporalRule:
-    """Reguła temporalna X => Y gdzie X jest podwzorcem Y."""
+    """Temporal rule X => Y where X is a subpattern of Y."""
     antecedent: TemporalPattern
     consequent: TemporalPattern
     confidence: float
@@ -143,14 +143,14 @@ class TemporalRule:
 
 @dataclass
 class IndexElement:
-    """Element indeksu dla algorytmu ARMADA."""
+    """Index element for ARMADA algorithm."""
     client_id: str
-    intervals: List[StateInterval]  # a_intv - lista interwałów tworzących wzorzec
-    pos: int  # Pozycja pierwszego wystąpienia stanu stem w sekwencji klienta
+    intervals: List[StateInterval]  # a_intv - list of intervals forming the pattern
+    pos: int  # Position of the first occurrence of stem state in client sequence
 
 
 class ClientSequence:
-    """Sekwencja klienta - seria interwałów stanów."""
+    """Client sequence - series of state intervals."""
 
     def __init__(self, client_id: str, intervals: List[StateInterval] = None):
         self.client_id = client_id
@@ -169,48 +169,48 @@ class ClientSequence:
 
 class ARMADA:
     """
-    Implementacja algorytmu ARMADA do odkrywania wzorców czasowych.
+    Implementation of the ARMADA algorithm for discovering temporal patterns.
 
-    Algorytm działa w trzech krokach:
-    1. Wczytanie bazy danych i znalezienie częstych 1-wzorców
-    2. Konstrukcja zbiorów indeksowych
-    3. Odkrywanie wzorców metodą find-then-index
+    The algorithm operates in three steps:
+    1. Read database and find frequent 1-patterns
+    2. Construct index sets
+    3. Discover patterns using find-then-index method
     """
 
     def __init__(self, minsup: float = 0.1, minconf: float = 0.5, maxgap: float = -1, max_pattern_size: int = 5):
         """
         Args:
-            minsup: Minimalne wsparcie (0-1)
-            minconf: Minimalna ufność dla reguł (0-1)
-            maxgap: Maksymalna przerwa czasowa między interwałami (-1 = brak ograniczenia)
-            max_pattern_size: Maksymalny rozmiar wzorca (limit głębokości rekurencji)
+            minsup: Minimum support (0-1)
+            minconf: Minimum rule confidence (0-1)
+            maxgap: Maximum time gap between intervals (-1 = no limit)
+            max_pattern_size: Maximum pattern size (recursion depth limit)
         """
         self.minsup = minsup
         self.minconf = minconf
         self.maxgap = maxgap
         self.max_pattern_size = max_pattern_size
 
-        # Baza danych w pamięci
+        # In-memory database
         self.client_sequences: Dict[str, ClientSequence] = {}
         self.num_clients = 0
 
-        # Wyniki
+        # Results
         self.frequent_patterns: List[TemporalPattern] = []
         self.temporal_rules: List[TemporalRule] = []
 
-        # Cache dla wsparcia stanów
+        # Cache for state support
         self._state_support: Dict[str, int] = defaultdict(int)
         self._frequent_states: Set[str] = set()
 
-        # Liczniki do monitorowania postępu
+        # Counters for progress monitoring
         self._patterns_found = 0
         self._depth_stats = defaultdict(int)
 
     def load_data(self, filepath: Path) -> None:
         """
-        Wczytuje dane z pliku w formacie ARMADA.
+        Loads data from file in ARMADA format.
 
-        Format pliku:
+        File format:
         SEQUENCE client_id
         state start_time end_time
         ...
@@ -238,13 +238,13 @@ class ARMADA:
                         current_client.add_interval(interval)
 
         self.num_clients = len(self.client_sequences)
-        print(f"Wczytano {self.num_clients} sekwencji klientów")
+        print(f"Loaded {self.num_clients} client sequences")
 
     def load_from_dataframe(self, df: pd.DataFrame) -> None:
         """
-        Wczytuje dane z DataFrame.
+        Loads data from DataFrame.
 
-        Wymagane kolumny: client_id, state, start_time, end_time
+        Required columns: client_id, state, start_time, end_time
         """
         self.client_sequences = {}
 
@@ -263,21 +263,21 @@ class ARMADA:
             self.client_sequences[client_id] = client_seq
 
         self.num_clients = len(self.client_sequences)
-        print(f"Wczytano {self.num_clients} sekwencji klientów")
+        print(f"Loaded {self.num_clients} client sequences")
 
     def _compute_allen_relation(self, a: StateInterval, b: StateInterval) -> str:
         """
-        Oblicza znormalizowaną relację Allena między dwoma interwałami.
-        Zakłada że a < b w porządku (a.start <= b.start).
+        Computes normalized Allen relation between two intervals.
+        Assumes a < b in order (a.start <= b.start).
         """
-        # a musi być przed lub równo z b w sensie start_time
+        # a must be before or equal to b in terms of start_time
         if a.start_time > b.start_time:
             a, b = b, a
 
         a_start, a_end = a.start_time, a.end_time
         b_start, b_end = b.start_time, b.end_time
 
-        # Relacje gdy start_time różne
+        # Relations when start_time differs
         if a_start < b_start:
             if a_end < b_start:
                 return 'b'  # before
@@ -290,19 +290,19 @@ class ARMADA:
             else:  # a_end > b_end
                 return 'c'  # contains
 
-        # Relacje gdy start_time równe
+        # Relations when start_time equals
         else:  # a_start == b_start
             if a_end == b_end:
                 return '='  # equals
             elif a_end < b_end:
                 return 's'  # starts
             else:
-                return 'fi'  # is-finished-by (odwrotność starts)
+                return 'fi'  # is-finished-by (inverse of starts)
 
-        return '?'  # nieznana relacja
+        return '?'  # unknown relation
 
     def _check_gap_constraint(self, intervals: List[StateInterval]) -> bool:
-        """Sprawdza czy interwały spełniają ograniczenie maxgap."""
+        """Checks if intervals satisfy maxgap constraint."""
         if self.maxgap < 0:
             return True
 
@@ -316,15 +316,15 @@ class ARMADA:
 
     def _find_frequent_1_patterns(self) -> Dict[str, int]:
         """
-        Krok 1: Znajdź wszystkie częste stany (1-wzorce).
+        Step 1: Find all frequent states (1-patterns).
 
         Returns:
-            Słownik {stan: liczba_wsparcia}
+            Dictionary {state: support_count}
         """
         state_support = defaultdict(int)
 
         for client_seq in self.client_sequences.values():
-            # Zlicz unikalne stany w sekwencji klienta
+            # Count unique states in client sequence
             client_states = set()
             for interval in client_seq.intervals:
                 client_states.add(interval.state)
@@ -332,7 +332,7 @@ class ARMADA:
             for state in client_states:
                 state_support[state] += 1
 
-        # Filtruj stany z wystarczającym wsparciem
+        # Filter states with sufficient support
         min_support_count = int(self.minsup * self.num_clients)
         self._state_support = {
             state: count
@@ -341,7 +341,7 @@ class ARMADA:
         }
         self._frequent_states = set(self._state_support.keys())
 
-        # Twórz 1-wzorce
+        # Create 1-patterns
         for state, count in self._state_support.items():
             pattern = TemporalPattern(
                 states=[state],
@@ -351,7 +351,7 @@ class ARMADA:
             )
             self.frequent_patterns.append(pattern)
 
-        print(f"Znaleziono {len(self._frequent_states)} częstych 1-wzorców")
+        print(f"Found {len(self._frequent_states)} frequent 1-patterns")
         return self._state_support
 
     def _create_index_set(
@@ -361,15 +361,15 @@ class ARMADA:
         range_set: List[IndexElement]
     ) -> List[IndexElement]:
         """
-        Krok 2: Tworzy zbiór indeksowy dla wzorca utworzonego z prefix i stem.
+        Step 2: Creates index set for pattern formed from prefix and stem.
 
         Args:
-            stem: Stan do dodania
-            prefix_pattern: Wzorzec prefiksowy (None dla 1-wzorców)
-            range_set: Zbiór sekwencji do przeszukania
+            stem: State to add
+            prefix_pattern: Prefix pattern (None for 1-patterns)
+            range_set: Set of sequences to search in
 
         Returns:
-            Zbiór indeksowy dla nowego wzorca
+            Index set for new pattern
         """
         index_set = []
 
@@ -377,12 +377,12 @@ class ARMADA:
             client_seq = self.client_sequences[elem.client_id]
             start_pos = elem.pos if prefix_pattern else -1
 
-            # Szukaj pierwszego wystąpienia stem po pozycji start_pos
+            # Search for first occurrence of stem after pos start_pos
             for pos in range(start_pos + 1, len(client_seq)):
                 interval = client_seq[pos]
 
                 if interval.state == stem:
-                    # Sprawdź ograniczenie maxgap
+                    # Check maxgap constraint
                     new_intervals = elem.intervals + [interval]
                     if self._check_gap_constraint(new_intervals):
                         new_elem = IndexElement(
@@ -391,7 +391,7 @@ class ARMADA:
                             pos=pos
                         )
                         index_set.append(new_elem)
-                    break  # Bierzemy tylko pierwsze wystąpienie
+                    break  # Take only first occurrence
 
         return index_set
 
@@ -399,18 +399,18 @@ class ARMADA:
         self,
         intervals: List[StateInterval]
     ) -> TemporalPattern:
-        """Tworzy wzorzec z listy interwałów."""
+        """Creates pattern from list of intervals."""
         n = len(intervals)
         states = [iv.state for iv in intervals]
 
-        # Buduj macierz relacji
+        # Build relations matrix
         relations = [['=' for _ in range(n)] for _ in range(n)]
 
         for i in range(n):
             for j in range(i + 1, n):
                 rel = self._compute_allen_relation(intervals[i], intervals[j])
                 relations[i][j] = rel
-                # Dolna część macierzy zostaje pusta (-)
+                # Lower part of matrix remains empty (-)
 
         return TemporalPattern(states=states, relations_matrix=relations)
 
@@ -421,40 +421,40 @@ class ARMADA:
         depth: int = 1
     ) -> None:
         """
-        Krok 3: Odkrywa wzorce z zestawu indeksowego metodą rekurencyjną.
+        Step 3: Discovers patterns from index set using recursive method.
 
         Args:
-            prefix_pattern: Wzorzec prefiksowy
-            index_set: Zbiór indeksowy do przeszukania
-            depth: Aktualna głębokość rekurencji
+            prefix_pattern: Prefix pattern
+            index_set: Index set to search
+            depth: Current recursion depth
         """
-        # Sprawdź limit głębokości
+        # Check depth limit
         if depth >= self.max_pattern_size:
             return
 
         self._depth_stats[depth] += 1
 
-        # Zlicz potencjalne stemy (stany)
+        # Count potential stems (states)
         stem_support = defaultdict(int)
-        stem_patterns = defaultdict(list)  # stem -> lista interwałów dla każdego klienta
+        stem_patterns = defaultdict(list)  # stem -> list of intervals for each client
 
         for elem in index_set:
             client_seq = self.client_sequences[elem.client_id]
-            counted_stems = set()  # Zlicz każdy stem raz per klient
+            counted_stems = set()  # Count each stem once per client
 
             for pos in range(elem.pos + 1, len(client_seq)):
                 interval = client_seq[pos]
                 state = interval.state
 
                 if state in self._frequent_states and state not in counted_stems:
-                    # Sprawdź ograniczenie maxgap
+                    # Check maxgap constraint
                     new_intervals = elem.intervals + [interval]
                     if self._check_gap_constraint(new_intervals):
                         counted_stems.add(state)
                         stem_support[state] += 1
                         stem_patterns[state].append((elem, interval, pos))
 
-        # Znajdź częste stemy
+        # Find frequent stems
         min_support_count = int(self.minsup * self.num_clients)
         frequent_stems = {
             stem: count
@@ -462,9 +462,9 @@ class ARMADA:
             if count >= min_support_count
         }
 
-        # Dla każdego częstego stem, utwórz nowy wzorzec i kontynuuj rekurencyjnie
+        # For each frequent stem, create new pattern and continue recursively
         for stem, count in frequent_stems.items():
-            # Znajdź wszystkie wystąpienia tego stemu
+            # Find all occurrences of this stem
             stem_index_set = []
             seen_clients = set()
 
@@ -480,7 +480,7 @@ class ARMADA:
                     ))
 
             if stem_index_set:
-                # Dodaj wzorzec do wyników
+                # Add pattern to results
                 sample_pattern = self._create_pattern_from_intervals(stem_index_set[0].intervals)
                 sample_pattern.support_count = count
                 sample_pattern.support = count / self.num_clients
@@ -488,38 +488,38 @@ class ARMADA:
 
                 self._patterns_found += 1
                 if self._patterns_found % 100 == 0:
-                    print(f"  Znaleziono {self._patterns_found} wzorców (głębokość {depth+1})...")
+                    print(f"  Found {self._patterns_found} patterns (depth {depth+1})...")
 
-                # Rekurencyjnie szukaj dłuższych wzorców
+                # Recursively search for longer patterns
                 self._mine_index_set(sample_pattern, stem_index_set, depth + 1)
 
     def mine_patterns(self) -> List[TemporalPattern]:
         """
-        Główna funkcja odkrywania wzorców.
+        Main function for discovering patterns.
 
         Returns:
-            Lista częstych wzorców temporalnych
+            List of frequent temporal patterns
         """
         print("=" * 60)
         print("ARMADA - Mining Temporal Patterns")
         print("=" * 60)
-        print(f"Parametry: minsup={self.minsup}, minconf={self.minconf}, maxgap={self.maxgap}, max_pattern_size={self.max_pattern_size}")
+        print(f"Parameters: minsup={self.minsup}, minconf={self.minconf}, maxgap={self.maxgap}, max_pattern_size={self.max_pattern_size}")
 
         self.frequent_patterns = []
         self._patterns_found = 0
         self._depth_stats = defaultdict(int)
 
-        # Krok 1: Znajdź częste 1-wzorce
-        print("\nKrok 1: Szukanie częstych 1-wzorców...")
+        # Step 1: Find frequent 1-patterns
+        print("\nStep 1: Finding frequent 1-patterns...")
         self._find_frequent_1_patterns()
 
-        # Krok 2-3: Dla każdego częstego stanu, utwórz indeks i kopaj
-        print("\nKrok 2-3: Odkrywanie wzorców n-wymiarowych...")
+        # Step 2-3: For each frequent state, create index and mine
+        print("\nStep 2-3: Discovering n-dimensional patterns...")
 
         for idx, state in enumerate(sorted(self._frequent_states)):
-            print(f"  Przetwarzanie stanu {idx+1}/{len(self._frequent_states)}: {state}")
+            print(f"  Processing state {idx+1}/{len(self._frequent_states)}: {state}")
 
-            # Utwórz początkowy wzorzec
+            # Create initial pattern
             pattern = TemporalPattern(
                 states=[state],
                 relations_matrix=[['=']],
@@ -527,7 +527,7 @@ class ARMADA:
                 support_count=self._state_support[state]
             )
 
-            # Utwórz początkowy zbiór indeksowy
+            # Create initial index set
             initial_index_set = []
             for client_id, client_seq in self.client_sequences.items():
                 for pos, interval in enumerate(client_seq.intervals):
@@ -537,12 +537,12 @@ class ARMADA:
                             intervals=[interval],
                             pos=pos
                         ))
-                        break  # Tylko pierwsze wystąpienie
+                        break  # Only first occurrence
 
-            # Rekurencyjnie odkrywaj wzorce
+            # Recursively discover patterns
             self._mine_index_set(pattern, initial_index_set, depth=1)
 
-        # Usuń duplikaty
+        # Remove duplicates
         unique_patterns = []
         seen = set()
         for p in self.frequent_patterns:
@@ -553,23 +553,23 @@ class ARMADA:
 
         self.frequent_patterns = unique_patterns
 
-        print(f"\nZnaleziono {len(self.frequent_patterns)} unikalnych wzorców")
+        print(f"\nFound {len(self.frequent_patterns)} unique patterns")
         return self.frequent_patterns
 
     def generate_rules(self) -> List[TemporalRule]:
         """
-        Generuje reguły temporalne z częstych wzorców.
+        Generates temporal rules from frequent patterns.
 
-        Dla każdego częstego n-wzorca Y (n > 1), znajdujemy wszystkie
-        podwzorce X i generujemy regułę X => Y jeśli confidence >= minconf.
+        For each frequent n-pattern Y (n > 1), we find all
+        subpatterns X and generate rule X => Y if confidence >= minconf.
 
         Returns:
-            Lista reguł temporalnych
+            List of temporal rules
         """
-        print("\nGenerowanie reguł temporalnych...")
+        print("\nGenerating temporal rules...")
         self.temporal_rules = []
 
-        # Mapowanie wzorców dla szybkiego wyszukiwania
+        # Mapping patterns for fast lookup
         pattern_support = {}
         for p in self.frequent_patterns:
             key = (tuple(p.states), tuple(tuple(row) for row in p.relations_matrix))
@@ -579,9 +579,9 @@ class ARMADA:
             if pattern.dim <= 1:
                 continue
 
-            # Generuj podwzorce (usuwając po jednym stanie od końca)
+            # Generate subpatterns (removing one state from the end)
             for i in range(1, pattern.dim):
-                # Podwzorzec z pierwszych i stanów
+                # Subpattern from first i states
                 sub_states = pattern.states[:i]
                 sub_matrix = [row[:i] for row in pattern.relations_matrix[:i]]
 
@@ -606,26 +606,26 @@ class ARMADA:
                         )
                         self.temporal_rules.append(rule)
 
-        print(f"Wygenerowano {len(self.temporal_rules)} reguł")
+        print(f"Generated {len(self.temporal_rules)} rules")
         return self.temporal_rules
 
     def run(self, filepath: Optional[Path] = None, df: Optional[pd.DataFrame] = None) -> Tuple[List[TemporalPattern], List[TemporalRule]]:
         """
-        Uruchamia pełny pipeline ARMADA.
+        Runs the full ARMADA pipeline.
 
         Args:
-            filepath: Ścieżka do pliku z danymi
-            df: DataFrame z danymi (alternatywnie)
+            filepath: Path to data file
+            df: DataFrame with data (alternative)
 
         Returns:
-            Tuple (lista wzorców, lista reguł)
+            Tuple (list of patterns, list of rules)
         """
         if filepath:
             self.load_data(filepath)
         elif df is not None:
             self.load_from_dataframe(df)
         else:
-            raise ValueError("Musisz podać filepath lub df")
+            raise ValueError("Must provide either filepath or df")
 
         patterns = self.mine_patterns()
         rules = self.generate_rules()
@@ -633,10 +633,10 @@ class ARMADA:
         return patterns, rules
 
     def save_results(self, output_dir: Path) -> None:
-        """Zapisuje wyniki do plików."""
+        """Saves results to files."""
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Zapisz wzorce
+        # Save patterns
         patterns_data = []
         for p in self.frequent_patterns:
             patterns_data.append({
@@ -651,7 +651,7 @@ class ARMADA:
         with open(output_dir / 'patterns.json', 'w') as f:
             json.dump(patterns_data, f, indent=2)
 
-        # Zapisz wzorce w formacie CSV
+        # Save patterns in CSV format
         patterns_df = pd.DataFrame([
             {
                 'dimension': p['dimension'],
@@ -663,7 +663,7 @@ class ARMADA:
         ])
         patterns_df.to_csv(output_dir / 'patterns.csv', index=False)
 
-        # Zapisz reguły - tylko top 1000 według confidence * support
+        # Save rules - only top 1000 by confidence * support
         rules_data = []
         for r in self.temporal_rules:
             rules_data.append({
@@ -671,13 +671,13 @@ class ARMADA:
                 'consequent': r.consequent.get_relation_description(),
                 'confidence': r.confidence,
                 'support': r.support,
-                'score': r.confidence * r.support  # metryka do sortowania
+                'score': r.confidence * r.support  # sorting metric
             })
 
-        # Sortuj według score i weź top 1000
+        # Sort by score and take top 1000
         rules_data = sorted(rules_data, key=lambda x: -x['score'])[:1000]
 
-        # Usuń score przed zapisem
+        # Remove score before saving
         for r in rules_data:
             del r['score']
 
@@ -687,62 +687,62 @@ class ARMADA:
         rules_df = pd.DataFrame(rules_data)
         rules_df.to_csv(output_dir / 'rules.csv', index=False)
 
-        print(f"Wyniki zapisano w {output_dir}")
-        print(f"  Wzorce: {len(patterns_data)}")
-        print(f"  Reguły (top 1000): {len(rules_data)}")
+        print(f"Results saved to {output_dir}")
+        print(f"  Patterns: {len(patterns_data)}")
+        print(f"  Rules (top 1000): {len(rules_data)}")
 
     def print_summary(self) -> None:
-        """Wyświetla podsumowanie wyników."""
+        """Prints results summary."""
         print("\n" + "=" * 60)
-        print("PODSUMOWANIE WYNIKÓW")
+        print("RESULTS SUMMARY")
         print("=" * 60)
 
-        # Grupuj wzorce według wymiaru
+        # Group patterns by dimension
         by_dim = defaultdict(list)
         for p in self.frequent_patterns:
             by_dim[p.dim].append(p)
 
-        print("\nWzorce według wymiaru:")
+        print("\nPatterns by dimension:")
         for dim in sorted(by_dim.keys()):
             patterns = by_dim[dim]
-            print(f"  {dim}-wzorce: {len(patterns)}")
+            print(f"  {dim}-patterns: {len(patterns)}")
 
-        print(f"\nŁącznie wzorców: {len(self.frequent_patterns)}")
-        print(f"Łącznie reguł: {len(self.temporal_rules)}")
+        print(f"\nTotal patterns: {len(self.frequent_patterns)}")
+        print(f"Total rules: {len(self.temporal_rules)}")
 
-        # Top 10 wzorców według wsparcia
-        print("\nTop 10 wzorców (według wsparcia):")
+        # Top 10 patterns by support
+        print("\nTop 10 patterns (by support):")
         sorted_patterns = sorted(self.frequent_patterns, key=lambda x: -x.support)
         for i, p in enumerate(sorted_patterns[:10]):
             print(f"  {i+1}. {p.get_relation_description()} (sup={p.support:.3f})")
 
-        # Top 10 reguł według ufności
+        # Top 10 rules by confidence
         if self.temporal_rules:
-            print("\nTop 10 reguł (według ufności):")
+            print("\nTop 10 rules (by confidence):")
             sorted_rules = sorted(self.temporal_rules, key=lambda x: -x.confidence)
             for i, r in enumerate(sorted_rules[:10]):
                 print(f"  {i+1}. {r.to_string()} (conf={r.confidence:.3f}, sup={r.support:.3f})")
 
 
 def main():
-    """Przykład użycia algorytmu ARMADA."""
-    # Ścieżki
+    """Example usage of ARMADA algorithm."""
+    # Paths
     BASE_DIR = Path(__file__).parent.parent.parent.parent
     DATA_DIR = BASE_DIR / "data" / "armada_ready"
     OUTPUT_DIR = BASE_DIR / "data" / "armada_results"
 
-    # Uruchom ARMADA na danych
-    # max_pattern_size=4 oznacza wzorce do 4 stanów (ogranicza eksplozję kombinatoryczną)
+    # Run ARMADA on data
+    # max_pattern_size=4 limits patterns to 4 states (prevents combinatorial explosion)
     armada = ARMADA(minsup=0.4, minconf=0.5, maxgap=30, max_pattern_size=4)
 
-    # Wczytaj dane - użyj mniejszego zbioru do testu
+    # Load data - use smaller dataset for test
     data_file = DATA_DIR / "armada_sequences_ceap.txt"
     if data_file.exists():
         patterns, rules = armada.run(filepath=data_file)
         armada.print_summary()
         armada.save_results(OUTPUT_DIR / "ceap_test")
     else:
-        print(f"Plik {data_file} nie istnieje!")
+        print(f"File {data_file} does not exist!")
 
 
 if __name__ == "__main__":

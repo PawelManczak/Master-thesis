@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """
-Porównanie wzorców ARMADA między zbiorami danych.
+Compare ARMADA patterns between datasets.
 
-Ten skrypt:
-1. Uruchamia ARMADA na każdym zbiorze danych osobno (CASE, K-emoCon, CEAP)
-2. Porównuje odkryte wzorce i reguły
-3. Znajduje wzorce wspólne dla wszystkich zbiorów
-4. Generuje raport porównawczy
+1. Runs ARMADA on each dataset separately (CASE, K-emoCon, CEAP, EmoWorker_v2).
+2. Compares discovered patterns and rules.
+3. Finds common patterns across all datasets.
+4. Generates a comparison report.
 
-Parametry:
-- minsup: 0.5 (50% uczestników)
-- minconf: 0.5 (50% ufność)
-- maxgap: 30 sekund
-- max_pattern_size: 3
+Parameters:
+- minsup: 0.2 (20% support)
+- minconf: 0.3 (30% confidence)
+- maxgap: 60 seconds
+- max_pattern_size: 2
 """
 
 import sys
@@ -23,7 +22,7 @@ from collections import defaultdict
 from typing import Dict, List, Set, Tuple
 import matplotlib.pyplot as plt
 
-# Dodaj ścieżkę do modułów
+# Add modules path
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_DIR = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
@@ -32,229 +31,35 @@ from armada_algorithm import ARMADA
 
 
 # ============================================================================
-# PARAMETRY EKSPERYMENTU
+# EXPERIMENT PARAMETERS
 # ============================================================================
-MINSUP = 0.3         # 50% uczestników musi mieć wzorzec
-MINCONF = 0.3        # 50% ufność dla reguł
-MAXGAP = 15           # 30 sekund maksymalna przerwa
-MAX_PATTERN_SIZE = 2  # wzorce do 3 stanów
+MINSUP = 0.3       # 20% minimum support
+MINCONF = 0.5      # 30% minimum confidence
+MAXGAP = 10       # 60s max gap
+MAX_PATTERN_SIZE = 2  # max depth 2
 
 # ============================================================================
-# FILTRY REGUŁ
+# RULE FILTERS
 # ============================================================================
-# Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany są związane z BVP (wszystkie metryki bvp_*, hrv_*, hr_*)
+# True -> reject rules where ALL states are BVP/HRV/HR-related
 FILTER_BVP_ONLY = True
 
-# Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany są związane z EDA (eda, eda_scr_amp, eda_scr_auc, …)
+# True -> reject rules where ALL states are EDA-related
 FILTER_EDA_ONLY = True
 
-# Jeśli True - odrzuca reguły gdzie WSZYSTKIE stany to sygnały peryferyjne (EDA + BVP/HRV/HR)
-# bez arousal, valence, temp — odrzuca np. "eda_scr_amp_low => ... hr_medium"
+# True -> reject rules where ALL states are peripheral signals (EDA + BVP/HRV/HR) without arousal/valence/temp
 FILTER_PHYSIO_CROSS = False
 
-# Jeśli True - odrzuca reguły gdzie wszystkie stany dotyczą tej samej cechy (np. tylko arousal_low, arousal_high)
+# True -> reject rules where all states are of the same feature type
 FILTER_SINGLE_FEATURE = True
 
-# Wszystkie prefiksy metryk EDA (pochodne z Electrodermal Activity)
-# Obejmuje SCL (tonic), SCR (phasic) i statystyki ogólne - wszystkie 6 cech EDA
-EDA_PREFIXES = (
-    'eda_scr_amp',    # SCR amplitude (phasic peak amplitude) - PRZED 'eda_scr_auc'!
-    'eda_scr_auc',    # SCR AUC (phasic area under curve)
-    'eda_std',        # zmienność phasic (SCR variability)
-    'eda_max',        # maksimum sygnału w oknie
-    'eda_peaks',      # liczba pików SCR
-    'eda',            # SCL - skin conductance level (tonic mean) - NA KOŃCU (najkrótszy prefix)
+# Import experiment_utils
+from experiment_utils import (
+    run_armada_on_df,
+    extract_rule_signatures,
+    extract_pattern_signatures,
+    filter_rules
 )
-
-# Wszystkie prefiksy metryk BVP/HRV (pochodne z Blood Volume Pulse / IBI)
-# HR jest również pochodną BVP (obliczane z IBI = inter-beat intervals z BVP)
-# HRV obliczane za pomocą NeuroKit2 (nk.hrv_time + nk.hrv_frequency)
-BVP_PREFIXES = (
-    # Metryki BVP surowe
-    'bvp_std',        # amplituda BVP
-    'bvp_peak_to_peak',
-    'bvp_spectral_power',
-    # HRV Time Domain (nk.hrv_time)
-    'hrv_sdnn',       # odchylenie standardowe NN
-    'hrv_rmssd',      # root mean square of successive differences
-    'hrv_pnn50',      # % różnic > 50ms
-    'hrv_pnn20',      # % różnic > 20ms
-    'hrv_cvnn',       # SDNN/MeanNN - współczynnik zmienności
-    'hrv_cvsd',       # RMSSD/MeanNN - znormalizowany RMSSD
-    # HRV Frequency Domain (nk.hrv_frequency)
-    'hrv_lf_hf',      # stosunek LF/HF
-    'hrv_lfn',        # znormalizowane LF
-    'hrv_hfn',        # znormalizowane HF
-    # HR (pochodna z BVP/IBI — mean i std tętna)
-    'hr_',             # hr_low/hr_medium/hr_high (z podkreślnikiem, żeby nie matchować hrv_*)
-)
-
-
-def is_bvp_only_rule(rule_signature: str) -> bool:
-    """
-    Sprawdza czy reguła zawiera TYLKO stany BVP (wszystkie pochodne).
-
-    Przykład reguły BVP-only:
-    (bvp_sdnn_low) => bvp_sdnn_low before bvp_rmssd_high
-    """
-    # Wyodrębnij wszystkie stany z reguły
-    # Format: "state1 relation state2 AND ... => state3 relation state4 ..."
-
-    # Usuń relacje i operatory
-    clean_sig = rule_signature.replace('=>', ' ').replace('AND', ' ')
-    clean_sig = clean_sig.replace('equals', ' ').replace('before', ' ')
-    clean_sig = clean_sig.replace('meets', ' ').replace('overlaps', ' ')
-    clean_sig = clean_sig.replace('contains', ' ').replace('starts', ' ')
-    clean_sig = clean_sig.replace('is-finished-by', ' ')
-    clean_sig = clean_sig.replace('(', '').replace(')', '')
-
-    # Wyodrębnij stany
-    tokens = [t.strip() for t in clean_sig.split() if t.strip()]
-    states = [t for t in tokens if '_' in t]  # stany mają format "feature_level"
-
-    if not states:
-        return False
-
-    # Sprawdź czy wszystkie stany zaczynają się od bvp_
-    for state in states:
-        is_bvp = any(state.startswith(prefix) for prefix in BVP_PREFIXES)
-        if not is_bvp:
-            return False
-
-    return True
-
-
-def is_eda_only_rule(rule_signature: str) -> bool:
-    """
-    Sprawdza czy reguła zawiera TYLKO stany EDA (wszystkie pochodne).
-
-    Przykład reguły EDA-only:
-    (eda_low) => eda_low before eda_scr_amp_high
-    """
-    clean_sig = rule_signature.replace('=>', ' ').replace('AND', ' ')
-    clean_sig = clean_sig.replace('equals', ' ').replace('before', ' ')
-    clean_sig = clean_sig.replace('meets', ' ').replace('overlaps', ' ')
-    clean_sig = clean_sig.replace('contains', ' ').replace('starts', ' ')
-    clean_sig = clean_sig.replace('is-finished-by', ' ')
-    clean_sig = clean_sig.replace('(', '').replace(')', '')
-
-    tokens = [t.strip() for t in clean_sig.split() if t.strip()]
-    states = [t for t in tokens if '_' in t]
-
-    if not states:
-        return False
-
-    for state in states:
-        is_eda = any(state.startswith(prefix) for prefix in EDA_PREFIXES)
-        if not is_eda:
-            return False
-
-    return True
-
-
-def is_physio_cross_rule(rule_signature: str) -> bool:
-    """
-    Sprawdza czy reguła zawiera TYLKO stany sygnałów peryferyjnych (EDA + BVP/HRV/HR)
-    bez arousal, valence, temp.
-
-    Odrzuca np. "eda_scr_amp_low => ... hr_medium" (EDA + BVP mix)
-    Przepuszcza np. "arousal_low => ... hrv_sdnn_low" (emocja + fizjologia)
-    """
-    clean_sig = rule_signature.replace('=>', ' ').replace('AND', ' ')
-    clean_sig = clean_sig.replace('equals', ' ').replace('before', ' ')
-    clean_sig = clean_sig.replace('meets', ' ').replace('overlaps', ' ')
-    clean_sig = clean_sig.replace('contains', ' ').replace('starts', ' ')
-    clean_sig = clean_sig.replace('is-finished-by', ' ')
-    clean_sig = clean_sig.replace('(', '').replace(')', '')
-
-    tokens = [t.strip() for t in clean_sig.split() if t.strip()]
-    states = [t for t in tokens if '_' in t]
-
-    if not states:
-        return False
-
-    # Sprawdź czy KAŻDY stan to EDA lub BVP/HRV/HR
-    for state in states:
-        is_eda = any(state.startswith(prefix) for prefix in EDA_PREFIXES)
-        is_bvp = any(state.startswith(prefix) for prefix in BVP_PREFIXES)
-        if not (is_eda or is_bvp):
-            # Ten stan to arousal/valence/temp — reguła NIE jest czysto-fizjologiczna
-            return False
-
-    return True
-
-
-def is_single_feature_rule(rule_signature: str) -> bool:
-    """
-    Sprawdza czy reguła zawiera tylko jedną cechę (np. tylko arousal).
-
-    Przykład reguły single-feature:
-    (arousal_low) => arousal_low meets arousal_high
-    """
-    # Wyodrębnij wszystkie stany z reguły
-    clean_sig = rule_signature.replace('=>', ' ').replace('AND', ' ')
-    clean_sig = clean_sig.replace('equals', ' ').replace('before', ' ')
-    clean_sig = clean_sig.replace('meets', ' ').replace('overlaps', ' ')
-    clean_sig = clean_sig.replace('contains', ' ').replace('starts', ' ')
-    clean_sig = clean_sig.replace('is-finished-by', ' ')
-    clean_sig = clean_sig.replace('(', '').replace(')', '')
-
-    tokens = [t.strip() for t in clean_sig.split() if t.strip()]
-    states = [t for t in tokens if '_' in t]
-
-    if not states:
-        return False
-
-    # Wyodrębnij bazowe cechy (np. arousal z arousal_low)
-    features = set()
-    for state in states:
-        # Format: feature_level (np. arousal_low, hr_high, bvp_rmssd_medium)
-        parts = state.rsplit('_', 1)
-        if len(parts) == 2:
-            feature = parts[0]
-            features.add(feature)
-
-    # Jeśli tylko jedna cecha - to single-feature rule
-    return len(features) == 1
-
-
-def filter_rules(
-    rules: Set[str],
-    filter_bvp_only: bool = FILTER_BVP_ONLY,
-    filter_eda_only: bool = FILTER_EDA_ONLY,
-    filter_physio_cross: bool = FILTER_PHYSIO_CROSS,
-    filter_single_feature: bool = FILTER_SINGLE_FEATURE
-) -> Set[str]:
-    """
-    Filtruje reguły według zadanych kryteriów.
-
-    Args:
-        rules: Zbiór sygnatur reguł
-        filter_bvp_only: Czy odrzucać reguły tylko z BVP/HRV/HR
-        filter_eda_only: Czy odrzucać reguły tylko z EDA
-        filter_physio_cross: Czy odrzucać reguły czysto-fizjologiczne (EDA+BVP mix bez emocji/temp)
-        filter_single_feature: Czy odrzucać reguły z jedną cechą
-
-    Returns:
-        Przefiltrowany zbiór reguł
-    """
-    filtered = set()
-
-    for rule in rules:
-        # Sprawdź filtry
-        if filter_bvp_only and is_bvp_only_rule(rule):
-            continue
-        if filter_eda_only and is_eda_only_rule(rule):
-            continue
-        if filter_physio_cross and is_physio_cross_rule(rule):
-            continue
-        if filter_single_feature and is_single_feature_rule(rule):
-            continue
-
-        filtered.add(rule)
-
-    return filtered
-
 
 def run_armada_on_dataset(
     data_file: Path,
@@ -263,55 +68,54 @@ def run_armada_on_dataset(
     maxgap: float = MAXGAP,
     max_pattern_size: int = MAX_PATTERN_SIZE
 ) -> Tuple[ARMADA, List, List]:
-    """Uruchamia ARMADA na pojedynczym zbiorze danych."""
-    armada = ARMADA(
-        minsup=minsup,
-        minconf=minconf,
-        maxgap=maxgap,
-        max_pattern_size=max_pattern_size
-    )
-    patterns, rules = armada.run(filepath=data_file)
-    return armada, patterns, rules
-
-
-def extract_pattern_signatures(patterns: List) -> Set[str]:
-    """Ekstrahuje sygnatury wzorców do porównania."""
-    signatures = set()
-    for p in patterns:
-        sig = p.get_relation_description()
-        signatures.add(sig)
-    return signatures
-
-
-def extract_rule_signatures(rules: List) -> Set[str]:
-    """Ekstrahuje sygnatury reguł do porównania."""
-    signatures = set()
-    for r in rules:
-        sig = f"{r.antecedent.get_relation_description()} => {r.consequent.get_relation_description()}"
-        signatures.add(sig)
-    return signatures
+    """Runs ARMADA on a single dataset."""
+    # CSV support
+    if str(data_file).endswith('.csv'):
+        print(f"  Loading CSV: {data_file}")
+        df = pd.read_csv(data_file)
+        return run_armada_on_df(df, minsup, minconf, maxgap, max_pattern_size)
+    else:
+        # Old TXT format
+        armada = ARMADA(
+            minsup=minsup,
+            minconf=minconf,
+            maxgap=maxgap,
+            max_pattern_size=max_pattern_size
+        )
+        patterns, rules = armada.run(filepath=data_file)
+        return armada, patterns, rules
 
 
 def compare_pattern_sets(patterns_dict: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
-    """Porównuje zbiory wzorców."""
+    """Compares pattern sets between datasets."""
     datasets = list(patterns_dict.keys())
     result = {}
 
-    # Wspólne dla wszystkich
+    # Common for all
     if len(datasets) >= 2:
         common_all = patterns_dict[datasets[0]].copy()
         for ds in datasets[1:]:
             common_all &= patterns_dict[ds]
         result['common_all'] = common_all
 
-    # Wspólne dla par
+    # Common for at least 3
+    if len(datasets) >= 3:
+        all_items = set().union(*patterns_dict.values())
+        common_3_plus = set()
+        for item in all_items:
+            count = sum(1 for ds in datasets if item in patterns_dict[ds])
+            if count >= 3:
+                common_3_plus.add(item)
+        result['common_3_plus'] = common_3_plus
+
+    # Common for pairs
     for i, ds1 in enumerate(datasets):
         for ds2 in datasets[i+1:]:
             key = f"common_{ds1}_{ds2}"
             common = patterns_dict[ds1] & patterns_dict[ds2]
             result[key] = common
 
-    # Unikalne dla każdego
+    # Unique per dataset
     for ds in datasets:
         others = set()
         for other_ds in datasets:
@@ -327,59 +131,67 @@ def create_comparison_visualizations(
     comparison: Dict[str, Set[str]],
     output_dir: Path
 ) -> None:
-    """Tworzy wykresy porównawcze."""
+    """Creates comparison visualizations."""
     datasets = list(patterns_dict.keys())
 
-    # Wykres 1: Liczba wzorców per zbiór
+    # Chart 1: Number of patterns per dataset
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
-    # 1a. Słupkowy - wzorce per zbiór
+    # 1a. Bar chart
     ax1 = axes[0]
     ds_names = list(patterns_dict.keys())
     counts = [len(patterns_dict[ds]) for ds in ds_names]
-    colors = ['#3498db', '#e74c3c', '#2ecc71']
-    bars = ax1.bar(ds_names, counts, color=colors)
-    ax1.set_ylabel('Liczba wzorców')
-    ax1.set_title('Wzorce per zbiór danych')
+    # Colors
+    colors = ['#3498db', '#e74c3c', '#2ecc71', '#9b59b6']
+    if len(ds_names) > len(colors):
+        colors = colors * (len(ds_names) // len(colors) + 1)
+
+    bars = ax1.bar(ds_names, counts, color=colors[:len(ds_names)])
+    ax1.set_ylabel('Pattern Count')
+    ax1.set_title('Patterns per Dataset')
     for bar, count in zip(bars, counts):
         ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2,
                 str(count), ha='center', va='bottom', fontweight='bold')
 
-    # 1b. Porównanie wspólnych/unikalnych
+    # 1b. Common vs Unique
     ax2 = axes[1]
-    if len(datasets) == 3:
-        ds1, ds2, ds3 = datasets
-        p1, p2, p3 = patterns_dict[ds1], patterns_dict[ds2], patterns_dict[ds3]
 
-        labels = ['Tylko\n' + ds1, 'Tylko\n' + ds2, 'Tylko\n' + ds3,
-                  f'{ds1}∩{ds2}', f'{ds1}∩{ds3}', f'{ds2}∩{ds3}', 'Wszystkie 3']
-        values = [
-            len(p1 - p2 - p3),
-            len(p2 - p1 - p3),
-            len(p3 - p1 - p2),
-            len((p1 & p2) - p3),
-            len((p1 & p3) - p2),
-            len((p2 & p3) - p1),
-            len(p1 & p2 & p3)
-        ]
-        colors2 = ['#e74c3c', '#3498db', '#2ecc71', '#9b59b6', '#e67e22', '#1abc9c', '#f1c40f']
+    if len(datasets) >= 3:
+        # Calculate categories
+        unique_counts = {ds: len(patterns_dict[ds] - set().union(*[patterns_dict[o] for o in datasets if o != ds])) for ds in datasets}
+
+        # Common for all
+        common_all = set(patterns_dict[datasets[0]])
+        for ds in datasets[1:]:
+            common_all &= patterns_dict[ds]
+        count_common_all = len(common_all)
+
+        # Prepare chart data
+        labels = [f"Unique\n{ds}" for ds in datasets] + ["Common\nALL"]
+        values = [unique_counts[ds] for ds in datasets] + [count_common_all]
+
+        colors2 = colors[:len(datasets)] + ['#f1c40f'] # Gold for common
+
         bars2 = ax2.bar(range(len(labels)), values, color=colors2)
         ax2.set_xticks(range(len(labels)))
         ax2.set_xticklabels(labels, fontsize=8, rotation=45, ha='right')
-        ax2.set_ylabel('Liczba wzorców')
-        ax2.set_title('Rozkład wzorców')
+        ax2.set_ylabel('Pattern Count')
+        ax2.set_title('Unique vs Common')
+
         for bar, val in zip(bars2, values):
             if val > 0:
                 ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1,
                         str(val), ha='center', va='bottom', fontsize=9)
+    else:
+        ax2.text(0.5, 0.5, "Requires min 3 datasets", ha='center')
 
-    # 1c. Procent wspólnych wzorców
+    # 1c. Percentage of common patterns
     ax3 = axes[2]
     common_all = len(comparison.get('common_all', set()))
     total_unique = len(set().union(*patterns_dict.values()))
 
     sizes = [common_all, total_unique - common_all]
-    labels_pie = [f'Wspólne\n({common_all})', f'Pozostałe\n({total_unique - common_all})']
+    labels_pie = [f'Common\n({common_all})', f'Others\n({total_unique - common_all})']
     colors_pie = ['#f1c40f', '#95a5a6']
     ax3.pie(sizes, labels=labels_pie, colors=colors_pie, autopct='%1.1f%%', startangle=90)
     ax3.set_title('Udział wspólnych wzorców')
@@ -389,7 +201,7 @@ def create_comparison_visualizations(
     plt.close()
 
 
-    print(f"Zapisano wykresy w {output_dir}")
+    print(f"Saved charts to {output_dir}")
 
 
 def save_common_patterns_details(
@@ -397,7 +209,7 @@ def save_common_patterns_details(
     all_results: Dict[str, Tuple],
     output_dir: Path
 ) -> pd.DataFrame:
-    """Zapisuje szczegóły wspólnych wzorców z metrykami per zbiór."""
+    """Saves details of common patterns with per-dataset metrics."""
     details = []
 
     for pattern_sig in sorted(common_patterns):
@@ -412,7 +224,7 @@ def save_common_patterns_details(
                     supports.append(p.support)
                     break
 
-        # Średnie wsparcie
+        # Average support
         if supports:
             entry["avg_support"] = round(sum(supports) / len(supports), 4)
             entry["min_support"] = round(min(supports), 4)
@@ -421,7 +233,7 @@ def save_common_patterns_details(
 
     df = pd.DataFrame(details)
 
-    # Sortuj po średnim wsparciu
+    # Sort by average support
     if 'avg_support' in df.columns:
         df = df.sort_values('avg_support', ascending=False)
 
@@ -435,7 +247,7 @@ def save_common_rules_details(
     all_results: Dict[str, Tuple],
     output_dir: Path
 ) -> pd.DataFrame:
-    """Zapisuje szczegóły wspólnych reguł."""
+    """Saves details of common rules."""
     details = []
 
     for rule_sig in sorted(common_rules):
@@ -478,30 +290,30 @@ def generate_markdown_report(
     common_rules_df: pd.DataFrame,
     output_dir: Path
 ) -> None:
-    """Generuje raport w formacie Markdown."""
+    """Generates Markdown report."""
 
     lines = []
-    lines.append("# Porównanie wzorców ARMADA między zbiorami danych")
+    lines.append("# ARMADA Patterns Comparison Between Datasets")
     lines.append("")
-    lines.append("## Parametry eksperymentu")
+    lines.append("## Experiment Parameters")
     lines.append("")
-    lines.append(f"- **minsup**: {MINSUP} ({MINSUP*100:.0f}% uczestników)")
-    lines.append(f"- **minconf**: {MINCONF} ({MINCONF*100:.0f}% ufność)")
+    lines.append(f"- **minsup**: {MINSUP} ({MINSUP*100:.0f}% participants)")
+    lines.append(f"- **minconf**: {MINCONF} ({MINCONF*100:.0f}% confidence)")
     lines.append(f"- **maxgap**: {MAXGAP} sekund")
     lines.append(f"- **max_pattern_size**: {MAX_PATTERN_SIZE}")
     lines.append("")
-    lines.append("## Filtry reguł")
+    lines.append("## Rule Filters")
     lines.append("")
-    lines.append(f"- **FILTER_BVP_ONLY**: {FILTER_BVP_ONLY} - {'odrzuca reguły zawierające tylko stany BVP/HRV/HR' if FILTER_BVP_ONLY else 'wyłączony'}")
-    lines.append(f"- **FILTER_EDA_ONLY**: {FILTER_EDA_ONLY} - {'odrzuca reguły zawierające tylko stany EDA' if FILTER_EDA_ONLY else 'wyłączony'}")
-    lines.append(f"- **FILTER_PHYSIO_CROSS**: {FILTER_PHYSIO_CROSS} - {'odrzuca reguły czysto-fizjologiczne (EDA+BVP mix bez emocji/temp)' if FILTER_PHYSIO_CROSS else 'wyłączony'}")
-    lines.append(f"- **FILTER_SINGLE_FEATURE**: {FILTER_SINGLE_FEATURE} - {'odrzuca reguły z jedną cechą (np. tylko arousal)' if FILTER_SINGLE_FEATURE else 'wyłączony'}")
+    lines.append(f"- **FILTER_BVP_ONLY**: {FILTER_BVP_ONLY} - {'rejects rules with only BVP/HRV/HR states' if FILTER_BVP_ONLY else 'disabled'}")
+    lines.append(f"- **FILTER_EDA_ONLY**: {FILTER_EDA_ONLY} - {'rejects rules with only EDA states' if FILTER_EDA_ONLY else 'disabled'}")
+    lines.append(f"- **FILTER_PHYSIO_CROSS**: {FILTER_PHYSIO_CROSS} - {'rejects purely physiological rules (EDA+BVP mix without emotion/temp)' if FILTER_PHYSIO_CROSS else 'disabled'}")
+    lines.append(f"- **FILTER_SINGLE_FEATURE**: {FILTER_SINGLE_FEATURE} - {'rejects single-feature rules (e.g. only arousal)' if FILTER_SINGLE_FEATURE else 'disabled'}")
     lines.append("")
 
-    # Statystyki per zbiór
-    lines.append("## Statystyki zbiorów danych")
+    # Dataset statistics
+    lines.append("## Dataset Statistics")
     lines.append("")
-    lines.append("| Zbiór | Uczestników | Wzorców | Reguł | Unikalne wzorce |")
+    lines.append("| Dataset | Participants | Patterns | Rules | Unique Patterns |")
     lines.append("|-------|-------------|---------|-------|-----------------|")
 
     for ds_name, (armada, patterns, rules) in all_results.items():
@@ -511,50 +323,51 @@ def generate_markdown_report(
 
     lines.append("")
 
-    # Porównanie
-    lines.append("## Porównanie zbiorów")
+    # Comparison
+    lines.append("## Datasets Comparison")
     lines.append("")
     common_all = len(patterns_comparison.get('common_all', set()))
     common_rules_all = len(rules_comparison.get('common_all', set()))
-    lines.append(f"- **Wzorce wspólne dla WSZYSTKICH zbiorów**: {common_all}")
-    lines.append(f"- **Reguły wspólne dla WSZYSTKICH zbiorów**: {common_rules_all}")
+    lines.append(f"- **Patterns common to ALL datasets**: {common_all}")
+    lines.append(f"- **Rules common to ALL datasets**: {common_rules_all}")
     lines.append("")
 
-    # Wspólne wzorce
-    lines.append("## Wspólne wzorce (wszystkie 3 zbiory)")
+    # Common patterns
+    lines.append("## Common Patterns (All datasets)")
     lines.append("")
 
     if len(common_patterns_df) > 0:
-        lines.append("### Top 20 wspólnych wzorców (według średniego wsparcia)")
+        lines.append("### Top 20 Common Patterns (by avg_support)")
         lines.append("")
-        lines.append("| Wzorzec | Śr. Support | CASE | K-emoCon | CEAP |")
-        lines.append("|---------|-------------|------|----------|------|")
+
+        # Dynamic table header
+        header = "| Pattern | Avg Support | " + " | ".join(all_results.keys()) + " |"
+        separator = "|---------|-------------|-" + "-|-".join(["-"*len(k) for k in all_results.keys()]) + "-|"
+        lines.append(header)
+        lines.append(separator)
 
         for _, row in common_patterns_df.head(20).iterrows():
-            case_sup = row.get('CASE_support', 'N/A')
-            kemo_sup = row.get('K-emoCon_support', 'N/A')
-            ceap_sup = row.get('CEAP_support', 'N/A')
             avg_sup = row.get('avg_support', 'N/A')
-
-            if isinstance(case_sup, float):
-                case_sup = f"{case_sup:.2f}"
-            if isinstance(kemo_sup, float):
-                kemo_sup = f"{kemo_sup:.2f}"
-            if isinstance(ceap_sup, float):
-                ceap_sup = f"{ceap_sup:.2f}"
             if isinstance(avg_sup, float):
                 avg_sup = f"{avg_sup:.2f}"
 
-            lines.append(f"| `{row['pattern']}` | {avg_sup} | {case_sup} | {kemo_sup} | {ceap_sup} |")
+            line_parts = [f"| `{row['pattern']}` | {avg_sup} "]
+            for ds_name in all_results.keys():
+                sup = row.get(f'{ds_name}_support', 'N/A')
+                if isinstance(sup, float):
+                    sup = f"{sup:.2f}"
+                line_parts.append(f"| {sup} ")
+            line_parts.append("|")
+            lines.append("".join(line_parts))
 
     lines.append("")
 
-    # Wspólne reguły
-    lines.append("## Wspólne reguły (wszystkie 3 zbiory)")
+    # Common rules
+    lines.append("## Common Rules (All datasets)")
     lines.append("")
 
     if len(common_rules_df) > 0:
-        lines.append("### Wszystkie wspólne reguły (według średniej ufności)")
+        lines.append("### All Common Rules (by avg_confidence)")
         lines.append("")
 
         for _, row in common_rules_df.iterrows():
@@ -571,20 +384,20 @@ def generate_markdown_report(
 
     lines.append("")
 
-    # Wnioski
-    lines.append("## Wnioski")
+    # Conclusions
+    lines.append("## Conclusions")
     lines.append("")
-    lines.append("### Wzorce powtarzające się między zbiorami")
+    lines.append("### Repeating Patterns Across Datasets")
     lines.append("")
 
     if common_all > 0:
-        lines.append(f"**TAK** - {common_all} wzorców jest wspólnych dla wszystkich trzech zbiorów danych, czyli sa uniwersalne")
+        lines.append(f"**YES** - {common_all} patterns are common to all datasets, making them universal.")
     else:
-        lines.append("**NIE** - Nie znaleziono wzorców wspólnych dla wszystkich zbiorów.")
+        lines.append("**NO** - No patterns found common to all datasets.")
 
     lines.append("")
 
-    # Zapisz raport
+    # Save report
     report_text = "\n".join(lines)
     with open(output_dir / "comparison_report.md", "w") as f:
         f.write(report_text)
@@ -592,10 +405,78 @@ def generate_markdown_report(
     print(f"Zapisano raport: {output_dir / 'comparison_report.md'}")
 
 
-def main():
-    """Główna funkcja eksperymentu."""
+def run_combined_analysis(
+    datasets_files: Dict[str, Path],
+    minsup: float = MINSUP,
+    minconf: float = MINCONF,
+    maxgap: float = MAXGAP,
+    max_pattern_size: int = MAX_PATTERN_SIZE,
+    output_dir: Path = None
+) -> Tuple[List, List]:
+    """
+    Runs analysis on combined datasets (Meta-analysis).
+    Finds patterns globally frequent, even if locally rare.
+    """
+    print(f"\n{'='*60}")
+    print(f"Przetwarzanie: COMBINED (Wszystkie zbiory razem)")
+    print(f"{'='*60}")
 
-    # Ścieżki
+    combined_df_list = []
+
+    for ds_name, file_path in datasets_files.items():
+        if str(file_path).endswith('.csv'):
+            df = pd.read_csv(file_path)
+
+            # Standardize column names to lowercase (as expected by ARMADA load_from_dataframe)
+            if 'ClientID' in df.columns:
+                df = df.rename(columns={'ClientID': 'client_id'})
+            if 'State' in df.columns:
+                df = df.rename(columns={'State': 'state'})
+            if 'Start' in df.columns:
+                df = df.rename(columns={'Start': 'start_time'})
+            if 'End' in df.columns:
+                df = df.rename(columns={'End': 'end_time'})
+
+            # Add prefix to client_id to avoid collisions (e.g. P1 in CASE and CEAP)
+            if 'client_id' in df.columns:
+                df['client_id'] = f"{ds_name}_" + df['client_id'].astype(str)
+            else:
+                print(f"WARN: Missing client_id in {ds_name}. Columns: {df.columns.tolist()}")
+
+            combined_df_list.append(df)
+            print(f"  Dodano {len(df)} wierszy z {ds_name}")
+
+    if not combined_df_list:
+        print("No data to combine.")
+        return [], []
+
+    full_df = pd.concat(combined_df_list, ignore_index=True)
+    print(f"Łącznie: {len(full_df)} wierszy, {full_df['client_id'].nunique()} uczestników")
+
+    # Run ARMADA on combined data
+    armada = ARMADA(
+        minsup=minsup,
+        minconf=minconf,
+        maxgap=maxgap,
+        max_pattern_size=max_pattern_size
+    )
+
+    patterns, rules = armada.run(df=full_df)
+
+    print(f"  Wzorców (Combined): {len(patterns)}")
+    print(f"  Reguł (Combined): {len(rules)}")
+
+    if output_dir:
+        comb_out = output_dir / "combined_all"
+        comb_out.mkdir(exist_ok=True)
+        armada.save_results(comb_out)
+
+    return patterns, rules
+
+def main():
+    """Main experiment function."""
+
+    # Paths
     DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
     OUTPUT_DIR = SCRIPT_DIR / "results"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -609,21 +490,22 @@ def main():
     print(f"Wyniki: {OUTPUT_DIR}")
     print()
 
-    # Zbiory danych
+    # Datasets
     datasets = {
-        'CASE': DATA_DIR / "armada_sequences_case.txt",
-        'K-emoCon': DATA_DIR / "armada_sequences_k_emocon.txt",
-        'CEAP': DATA_DIR / "armada_sequences_ceap.txt"
+        'CASE': DATA_DIR / "armada_case.csv",
+        'K-emoCon': DATA_DIR / "armada_k_emocon.csv",
+        'CEAP': DATA_DIR / "armada_ceap.csv",
+        'EmoWorker_v2': DATA_DIR / "armada_emoworker_v2.csv"
     }
 
-    # Sprawdź czy pliki istnieją
+    # Check if files exist
     for ds_name, data_file in datasets.items():
         if not data_file.exists():
-            print(f"BŁĄD: Plik {data_file} nie istnieje!")
-            print("Uruchom najpierw: python prepare_armada_data.py && python validate_armada_data.py")
+            print(f"ERROR: File {data_file} does not exist!")
+            print("Run: python prepare_armada_data.py && python validate_armada_data.py")
             return
 
-    # Uruchom ARMADA na każdym zbiorze
+    # Run ARMADA on each dataset
     all_results = {}
     patterns_signatures = {}
     rules_signatures = {}
@@ -642,19 +524,19 @@ def main():
         print(f"  Wzorców: {len(patterns)}")
         print(f"  Reguł: {len(rules)}")
 
-        # Zapisz wyniki per zbiór
+        # Save per-dataset results
         ds_output = OUTPUT_DIR / ds_name.lower().replace('-', '_')
         ds_output.mkdir(exist_ok=True)
         armada.save_results(ds_output)
 
-    # Porównaj wzorce i reguły
+    # Compare patterns and rules
     print("\n" + "=" * 80)
     print("PORÓWNANIE WZORCÓW")
     print("=" * 80)
 
     patterns_comparison = compare_pattern_sets(patterns_signatures)
 
-    # Filtrowanie reguł przed porównaniem
+    # Filter rules before comparison
     filtered_rules_signatures = {}
     for ds_name, rules_set in rules_signatures.items():
         original_count = len(rules_set)
@@ -662,34 +544,43 @@ def main():
         filtered_rules_signatures[ds_name] = filtered
         removed = original_count - len(filtered)
         if removed > 0:
-            print(f"  {ds_name}: odfiltrowano {removed} reguł (z {original_count})")
+            print(f"  {ds_name}: filtered {removed} rules (out of {original_count})")
 
     rules_comparison = compare_pattern_sets(filtered_rules_signatures)
 
     common_patterns = patterns_comparison.get('common_all', set())
     common_rules = rules_comparison.get('common_all', set())
 
+    common_rules_3plus = rules_comparison.get('common_3_plus', set())
+
     print(f"\nWzorce wspólne dla WSZYSTKICH zbiorów: {len(common_patterns)}")
     print(f"Reguły wspólne dla WSZYSTKICH zbiorów: {len(common_rules)}")
+    print(f"Reguły wspólne dla >=3 zbiorów: {len(common_rules_3plus)}")
 
     for ds in patterns_signatures:
         unique = len(patterns_comparison.get(f'unique_{ds}', set()))
         print(f"Wzorce unikalne dla {ds}: {unique}")
 
-    # Zapisz szczegóły wspólnych wzorców i reguł
+    # Save common patterns and rules details
     common_patterns_df = save_common_patterns_details(common_patterns, all_results, OUTPUT_DIR)
-    common_rules_df = save_common_rules_details(common_rules, all_results, OUTPUT_DIR)
 
-    # Wizualizacje
+    # Save common 3+ if common all is empty
+    if len(common_rules) == 0 and len(common_rules_3plus) > 0:
+        print("Saving 3+ rules because common(4) is empty.")
+        common_rules_df = save_common_rules_details(common_rules_3plus, all_results, OUTPUT_DIR)
+    else:
+        common_rules_df = save_common_rules_details(common_rules, all_results, OUTPUT_DIR)
+
+    # Visualizations
     create_comparison_visualizations(patterns_signatures, patterns_comparison, OUTPUT_DIR)
 
-    # Raport Markdown
+    # Markdown Report
     generate_markdown_report(
         patterns_comparison, rules_comparison, all_results,
         common_patterns_df, common_rules_df, OUTPUT_DIR
     )
 
-    # Zapisz podsumowanie JSON
+    # Save JSON summary
     summary = {
         "experiment_date": pd.Timestamp.now().isoformat(),
         "parameters": {
@@ -723,19 +614,19 @@ def main():
     with open(OUTPUT_DIR / "experiment_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
 
-    # Wyświetl wspólne wzorce
+    # Display common patterns
     print("\n" + "=" * 80)
-    print("WSPÓLNE WZORCE (wszystkie 3 zbiory)")
+    print("COMMON PATTERNS (all 3 datasets)")
     print("=" * 80)
 
     for _, row in common_patterns_df.head(15).iterrows():
         print(f"  {row['pattern']} (avg_sup={row.get('avg_support', 'N/A')})")
 
     if len(common_patterns_df) > 15:
-        print(f"  ... i {len(common_patterns_df) - 15} więcej")
+        print(f"  ... and {len(common_patterns_df) - 15} more")
 
     print("\n" + "=" * 80)
-    print("WSPÓLNE REGUŁY (wszystkie 3 zbiory)")
+    print("COMMON RULES (all 3 datasets)")
     print("=" * 80)
 
     for _, row in common_rules_df.head(10).iterrows():
@@ -743,11 +634,51 @@ def main():
         print(f"    avg_conf={row.get('avg_confidence', 'N/A')}, avg_sup={row.get('avg_support', 'N/A')}")
 
     if len(common_rules_df) > 10:
-        print(f"  ... i {len(common_rules_df) - 10} więcej")
+        print(f"  ... and {len(common_rules_df) - 10} more")
+
+    # Run Combined Analysis
+    combined_patterns, combined_rules = run_combined_analysis(
+        datasets,
+        minsup=MINSUP,
+        minconf=MINCONF,
+        maxgap=MAXGAP,
+        max_pattern_size=MAX_PATTERN_SIZE,
+        output_dir=OUTPUT_DIR
+    )
+
+    # Filter combined rules
+    combined_rules_sigs = extract_rule_signatures(combined_rules)
+    filtered_combined = filter_rules(combined_rules_sigs, FILTER_BVP_ONLY, FILTER_EDA_ONLY, FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
+
+    print(f"  Rules (Combined) after filtering: {len(filtered_combined)}")
+
+    # Save combined rules details
+    # Using save_common_rules_details format but for single column
+    comb_details = []
+    for sig in filtered_combined:
+        # Find rule object
+        rule_obj = next((r for r in combined_rules if f"{r.antecedent.get_relation_description()} => {r.consequent.get_relation_description()}" == sig), None)
+        if rule_obj:
+            comb_details.append({
+                "rule": sig,
+                "confidence": rule_obj.confidence,
+                "support": rule_obj.support,
+            })
+
+    comb_df = pd.DataFrame(comb_details)
+    if not comb_df.empty:
+        comb_df = comb_df.sort_values("confidence", ascending=False)
+        comb_df.to_csv(OUTPUT_DIR / "combined_rules_details.csv", index=False)
+
+        print("\n" + "=" * 80)
+        print("RULES FROM COMBINED ANALYSIS (TOP 15)")
+        print("=" * 80)
+        for _, row in comb_df.head(15).iterrows():
+            print(f"  {row['rule']} (conf={row['confidence']:.2f}, sup={row['support']:.2f})")
 
     print("\n" + "=" * 80)
-    print("EKSPERYMENT ZAKOŃCZONY")
-    print(f"Wyniki zapisane w: {OUTPUT_DIR}")
+    print("EXPERIMENT FINISHED")
+    print(f"Results saved in: {OUTPUT_DIR}")
     print("=" * 80)
 
 

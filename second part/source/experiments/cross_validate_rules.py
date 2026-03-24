@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Eksperyment: Walidacja krzyżowa reguł ARMADA między zbiorami danych.
+Experiment: Cross-validation of ARMADA rules between datasets.
 
-Dla każdej kombinacji dwóch zbiorów treningowych i jednego walidacyjnego:
-1. Znajdź reguły wspólne dla dwóch zbiorów treningowych
-2. Sprawdź ile z nich pojawia się w zbiorze walidacyjnym
-3. Porównaj ufność i wsparcie
+For each combination of two training sets and one validation set:
+1. Find rules common to two training sets.
+2. Check how many of them appear in the validation set.
+3. Compare confidence and support.
 
-Kombinacje:
-  - Trening: CASE + K-emoCon    → Walidacja: CEAP
-  - Trening: CASE + CEAP        → Walidacja: K-emoCon
-  - Trening: K-emoCon + CEAP    → Walidacja: CASE
+Combinations:
+  - Train: CASE + K-emoCon    -> Val: CEAP
+  - Train: CASE + CEAP        -> Val: K-emoCon
+  - Train: K-emoCon + CEAP    -> Val: CASE
 """
 
 import sys
@@ -20,7 +20,7 @@ import json
 from collections import defaultdict
 from typing import Dict, List, Set, Tuple
 
-# Dodaj ścieżkę do modułów
+# Add modules path
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_DIR = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
@@ -37,24 +37,34 @@ from compare_datasets import (
 
 
 # ============================================================================
-# KONFIGURACJA
+# CONFIGURATION
 # ============================================================================
 DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
 OUTPUT_DIR = SCRIPT_DIR / "results" / "cross_validation"
 
+# Updated with EmoWorker_v2
 DATASETS = {
-    'CASE': DATA_DIR / "armada_sequences_case.txt",
-    'K-emoCon': DATA_DIR / "armada_sequences_k_emocon.txt",
-    'CEAP': DATA_DIR / "armada_sequences_ceap.txt",
+    'CASE': DATA_DIR / "armada_case.csv",
+    'K-emoCon': DATA_DIR / "armada_k_emocon.csv",
+    'CEAP': DATA_DIR / "armada_ceap.csv",
+    'EmoWorker_v2': DATA_DIR / "armada_emoworker_v2.csv",
 }
+
+def generate_combinations(datasets: List[str]) -> List[Tuple[List[str], str]]:
+    """Generates (Train Sets) -> Test Set (Leave-One-Out) combinations."""
+    combinations = []
+    for test_set in datasets:
+        train_sets = [d for d in datasets if d != test_set]
+        combinations.append((train_sets, test_set))
+    return combinations
 
 
 def get_rule_details(rules: List[TemporalRule]) -> Dict[str, Dict]:
     """
-    Mapuje sygnaturę reguły na jej szczegóły (confidence, support).
+    Maps rule signature to its details (confidence, support).
 
     Returns:
-        dict: {sygnatura: {'confidence': float, 'support': float}}
+        dict: {signature: {'confidence': float, 'support': float}}
     """
     details = {}
     for r in rules:
@@ -67,38 +77,38 @@ def get_rule_details(rules: List[TemporalRule]) -> Dict[str, Dict]:
 
 
 def run_cross_validation():
-    """Główna funkcja eksperymentu walidacji krzyżowej."""
+    """Main cross-validation experiment function."""
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 90)
-    print("EKSPERYMENT: WALIDACJA KRZYŻOWA REGUŁ ARMADA")
+    print("EXPERIMENT: ARMADA RULES CROSS-VALIDATION")
     print("=" * 90)
-    print(f"Data: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
-    print(f"Parametry: minsup={MINSUP}, minconf={MINCONF}, maxgap={MAXGAP}, max_size={MAX_PATTERN_SIZE}")
-    print(f"Filtry: BVP_ONLY={FILTER_BVP_ONLY}, EDA_ONLY={FILTER_EDA_ONLY}, "
+    print(f"Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"Parameters: minsup={MINSUP}, minconf={MINCONF}, maxgap={MAXGAP}, max_size={MAX_PATTERN_SIZE}")
+    print(f"Filters: BVP_ONLY={FILTER_BVP_ONLY}, EDA_ONLY={FILTER_EDA_ONLY}, "
           f"PHYSIO_CROSS={FILTER_PHYSIO_CROSS}, SINGLE_FEAT={FILTER_SINGLE_FEATURE}")
     print()
 
-    # Sprawdź pliki
+    # Check files
     for ds_name, path in DATASETS.items():
         if not path.exists():
-            print(f"BŁĄD: Brak pliku {path}")
+            print(f"ERROR: Missing file {path}")
             return
 
     # ================================================================
-    # 1. Uruchom ARMADA na każdym zbiorze
+    # 1. Run ARMADA on each dataset
     # ================================================================
     all_results = {}  # {name: (armada, patterns, rules)}
     all_rule_sigs = {}  # {name: set(signatures)}
     all_rule_details = {}  # {name: {sig: {conf, sup}}}
 
     for ds_name, data_file in DATASETS.items():
-        print(f"Przetwarzanie: {ds_name}...", end=" ", flush=True)
+        print(f"Processing: {ds_name}...", end=" ", flush=True)
         armada, patterns, rules = run_armada_on_dataset(data_file)
         all_results[ds_name] = (armada, patterns, rules)
 
-        # Filtruj reguły
+        # Filter rules
         raw_sigs = extract_rule_signatures(rules)
         filtered_sigs = filter_rules(raw_sigs, FILTER_BVP_ONLY, FILTER_EDA_ONLY,
                                      FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
@@ -106,67 +116,80 @@ def run_cross_validation():
         all_rule_details[ds_name] = get_rule_details(rules)
 
         n_clients = armada.num_clients
-        print(f"{n_clients} uczestników, {len(patterns)} wzorców, "
-              f"{len(rules)} reguł ({len(filtered_sigs)} po filtracji)")
+        print(f"{n_clients} participants, {len(patterns)} patterns, "
+              f"{len(rules)} rules ({len(filtered_sigs)} after filtering)")
 
     # ================================================================
-    # 2. Walidacja krzyżowa: 2 treningowe → 1 walidacyjny
+    # 2. Cross-validation: (N-1) train -> 1 val
     # ================================================================
     ds_names = list(DATASETS.keys())
-    combinations = [
-        (ds_names[0], ds_names[1], ds_names[2]),  # CASE+K-emoCon → CEAP
-        (ds_names[0], ds_names[2], ds_names[1]),  # CASE+CEAP → K-emoCon
-        (ds_names[1], ds_names[2], ds_names[0]),  # K-emoCon+CEAP → CASE
-    ]
+    combinations = generate_combinations(ds_names)
 
     cv_results = []
 
     print()
     print("=" * 90)
-    print("WALIDACJA KRZYŻOWA")
+    print("CROSS-VALIDATION")
     print("=" * 90)
 
-    for train1, train2, val in combinations:
-        print(f"\n--- Trening: {train1} + {train2}  →  Walidacja: {val} ---")
+    for train_sets, val_set in combinations:
+        train_names_str = " + ".join(train_sets)
+        print(f"\n--- Train: {train_names_str}  ->  Val: {val_set} ---")
 
-        # Reguły wspólne dla pary treningowej
-        common_train = all_rule_sigs[train1] & all_rule_sigs[train2]
-        print(f"  Reguły wspólne ({train1} ∩ {train2}): {len(common_train)}")
+        # Rules common for ALL training sets
+        common_train = None
+        for t in train_sets:
+            if common_train is None:
+                common_train = set(all_rule_sigs[t])
+            else:
+                common_train &= all_rule_sigs[t]
 
-        # Ile z nich jest w zbiorze walidacyjnym
-        validated = common_train & all_rule_sigs[val]
-        print(f"  Potwierdzone w {val}: {len(validated)}")
+        if common_train is None: common_train = set()
+
+        print(f"  Common rules ({train_names_str}): {len(common_train)}")
+
+        # How many of them are in the validation set
+        validated = common_train & all_rule_sigs[val_set]
+        print(f"  Validated in {val_set}: {len(validated)}")
 
         hit_rate = len(validated) / len(common_train) * 100 if common_train else 0
-        print(f"  Trafność: {hit_rate:.1f}%")
+        print(f"  Hit rate: {hit_rate:.1f}%")
 
-        # Zbierz szczegóły potwierdzonych reguł
+        # Collect validated rules details
         validated_details = []
         for sig in sorted(validated):
-            d1 = all_rule_details[train1].get(sig, {})
-            d2 = all_rule_details[train2].get(sig, {})
-            dv = all_rule_details[val].get(sig, {})
+            detail = {'rule': sig}
 
-            conf_train_avg = (d1.get('confidence', 0) + d2.get('confidence', 0)) / 2
-            sup_train_avg = (d1.get('support', 0) + d2.get('support', 0)) / 2
+            # Values for training sets
+            train_confs = []
+            train_sups = []
+            for t in train_sets:
+                d = all_rule_details[t].get(sig, {})
+                c = d.get('confidence', 0)
+                s = d.get('support', 0)
+                detail[f'{t}_conf'] = round(c, 3)
+                detail[f'{t}_sup'] = round(s, 3)
+                train_confs.append(c)
+                train_sups.append(s)
 
-            validated_details.append({
-                'rule': sig,
-                f'{train1}_conf': round(d1.get('confidence', 0), 3),
-                f'{train1}_sup': round(d1.get('support', 0), 3),
-                f'{train2}_conf': round(d2.get('confidence', 0), 3),
-                f'{train2}_sup': round(d2.get('support', 0), 3),
-                f'{val}_conf': round(dv.get('confidence', 0), 3),
-                f'{val}_sup': round(dv.get('support', 0), 3),
-                'train_avg_conf': round(conf_train_avg, 3),
-                'val_conf': round(dv.get('confidence', 0), 3),
-                'conf_diff': round(dv.get('confidence', 0) - conf_train_avg, 3),
-            })
+            # Values for validation set
+            dv = all_rule_details[val_set].get(sig, {})
+            val_conf = dv.get('confidence', 0)
+            val_sup = dv.get('support', 0)
+            detail[f'{val_set}_conf'] = round(val_conf, 3)
+            detail[f'{val_set}_sup'] = round(val_sup, 3)
+
+            # Averages
+            train_avg_conf = sum(train_confs) / len(train_confs) if train_confs else 0
+            detail['train_avg_conf'] = round(train_avg_conf, 3)
+            detail['val_conf'] = round(val_conf, 3)
+            detail['conf_diff'] = round(val_conf - train_avg_conf, 3)
+
+            validated_details.append(detail)
 
         cv_results.append({
-            'train1': train1,
-            'train2': train2,
-            'val': val,
+            'train_sets': train_sets,
+            'val_set': val_set,
             'common_train': len(common_train),
             'validated': len(validated),
             'hit_rate': hit_rate,
@@ -174,32 +197,33 @@ def run_cross_validation():
         })
 
     # ================================================================
-    # 3. Reguły potwierdzone we WSZYSTKICH kombinacjach
+    # 3. Rules validated in ALL combinations
     # ================================================================
-    all_validated = None
-    for cv in cv_results:
-        validated_set = {d['rule'] for d in cv['details']}
-        if all_validated is None:
-            all_validated = validated_set
+    # Check rules that are universal (present in EVERY dataset).
+    all_universal = None
+    for ds in ds_names:
+        if all_universal is None:
+            all_universal = set(all_rule_sigs[ds])
         else:
-            all_validated &= validated_set
+            all_universal &= all_rule_sigs[ds]
 
     print()
     print("=" * 90)
-    print(f"REGUŁY POTWIERDZONE WE WSZYSTKICH 3 KOMBINACJACH: {len(all_validated)}")
+    print(f"RULES PRESENT IN EVERY DATASET ({len(all_universal)})")
     print("=" * 90)
 
     # ================================================================
-    # 4. Generuj tabelę podsumowującą
+    # 4. Generate summary table
     # ================================================================
     summary_rows = []
     for cv in cv_results:
+        train_str = " + ".join(cv['train_sets'])
         summary_rows.append({
-            'Trening': f"{cv['train1']} + {cv['train2']}",
-            'Walidacja': cv['val'],
-            'Reguły wspólne (trening)': cv['common_train'],
-            'Potwierdzone w walidacji': cv['validated'],
-            'Trafność (%)': round(cv['hit_rate'], 1),
+            'Train (N-1)': train_str,
+            'Val': cv['val_set'],
+            'Common (Train)': cv['common_train'],
+            'Validated': cv['validated'],
+            'Hit Rate (%)': round(cv['hit_rate'], 1),
         })
 
     summary_df = pd.DataFrame(summary_rows)
@@ -207,28 +231,29 @@ def run_cross_validation():
     print(summary_df.to_string(index=False))
 
     # ================================================================
-    # 5. Szczegółowa tabela potwierdzonych reguł
+    # 5. Detailed table of validated rules
     # ================================================================
-    # Dla każdej reguły — w ilu kombinacjach została potwierdzona
-    rule_counts = defaultdict(lambda: {
-        'count': 0,
-        'combinations': [],
-        'confs': [],
-        'sups': [],
-    })
+    # Count how many datasets contain each rule
+    rule_occurence = defaultdict(int)
+    for ds in ds_names:
+        for sig in all_rule_sigs[ds]:
+            rule_occurence[sig] += 1
 
-    for cv in cv_results:
-        combo_label = f"{cv['train1']}+{cv['train2']}→{cv['val']}"
-        for d in cv['details']:
-            sig = d['rule']
-            rule_counts[sig]['count'] += 1
-            rule_counts[sig]['combinations'].append(combo_label)
-            rule_counts[sig]['confs'].append(d['val_conf'])
-            rule_counts[sig]['sups'].append(d[f"{cv['val']}_sup"])
+    # List of all unique rules
+    all_unique_rules = set()
+    for ds in ds_names:
+        all_unique_rules.update(all_rule_sigs[ds])
 
-    # Zbierz ogólne conf/sup ze wszystkich 3 datasetów
+    # Collect overall conf/sup
+    total_datasets = len(ds_names)
     universal_rules = []
-    for sig, info in sorted(rule_counts.items(), key=lambda x: -x[1]['count']):
+
+    for sig in sorted(all_unique_rules):
+        count = rule_occurence[sig]
+        # Filter to show only those in min 2 datasets
+        if count < 2:
+            continue
+
         all_confs = []
         all_sups = []
         per_ds = {}
@@ -238,184 +263,96 @@ def run_cross_validation():
             s = dd.get('support', None)
             if c is not None:
                 all_confs.append(c)
-                per_ds[f'{ds}_conf'] = round(c, 3)
+                per_ds[f'{ds} conf'] = round(c, 3)
             else:
-                per_ds[f'{ds}_conf'] = '-'
+                per_ds[f'{ds} conf'] = '-'
             if s is not None:
                 all_sups.append(s)
-                per_ds[f'{ds}_sup'] = round(s, 3)
+                per_ds[f'{ds} sup'] = round(s, 3)
             else:
-                per_ds[f'{ds}_sup'] = '-'
+                per_ds[f'{ds} sup'] = '-'
 
         universal_rules.append({
-            'Reguła': sig,
-            'Potwierdzenia (z 3)': info['count'],
-            **{f'{ds} conf': per_ds[f'{ds}_conf'] for ds in ds_names},
-            **{f'{ds} sup': per_ds[f'{ds}_sup'] for ds in ds_names},
-            'Śr. conf': round(sum(all_confs) / len(all_confs), 3) if all_confs else '-',
-            'Śr. sup': round(sum(all_sups) / len(all_sups), 3) if all_sups else '-',
+            'Rule': sig,
+            f'Presence (/{total_datasets})': count,
+            **per_ds,
+            'Avg conf': round(sum(all_confs) / len(all_confs), 3) if all_confs else '-',
+            'Avg sup': round(sum(all_sups) / len(all_sups), 3) if all_sups else '-',
         })
 
     universal_df = pd.DataFrame(universal_rules)
-    if len(universal_df) > 0 and 'Potwierdzenia (z 3)' in universal_df.columns:
+    if len(universal_df) > 0:
+        col_count = f'Presence (/{total_datasets})'
         universal_df = universal_df.sort_values(
-            by=['Potwierdzenia (z 3)', 'Śr. conf'],
+            by=[col_count, 'Avg conf'],
             ascending=[False, False]
         )
 
     # ================================================================
-    # 6. Zapisz wyniki
+    # 6. Save results
     # ================================================================
-    # Tabela podsumowująca
     summary_df.to_csv(OUTPUT_DIR / "cross_validation_summary.csv", index=False)
-
-    # Tabela uniwersalnych reguł
     universal_df.to_csv(OUTPUT_DIR / "cross_validated_rules.csv", index=False)
 
-    # Szczegóły per kombinacja
     for cv in cv_results:
         if cv['details']:
             df = pd.DataFrame(cv['details']).sort_values('train_avg_conf', ascending=False)
-            fname = f"validated_{cv['train1']}_{cv['train2']}_to_{cv['val']}.csv"
-            fname = fname.replace('-', '').lower()
+            fname = f"validated_{'_'.join(cv['train_sets'])}_to_{cv['val_set']}.csv"
+            fname = fname.replace(' ', '').replace('+', '_').replace('-', '').lower()
             df.to_csv(OUTPUT_DIR / fname, index=False)
 
     # ================================================================
-    # 7. Generuj raport Markdown
+    # 7. Generate Markdown report
     # ================================================================
     lines = []
-    lines.append("# Walidacja krzyżowa reguł ARMADA")
+    lines.append("# ARMADA Rules Cross-Validation")
     lines.append("")
-    lines.append(f"Data: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
+    lines.append(f"Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
     lines.append("")
-    lines.append("## Metodologia")
+    lines.append("## Methodology")
     lines.append("")
-    lines.append("Dla każdej kombinacji dwóch zbiorów treningowych:")
-    lines.append("1. Znajdź reguły wspólne dla pary treningowej")
-    lines.append("2. Sprawdź ile z nich występuje w trzecim zbiorze (walidacyjnym)")
-    lines.append("3. Oblicz trafność (% reguł potwierdzonych)")
+    lines.append("For each combination of two training sets:")
+    lines.append("1. Find patterns common to the training pair")
+    lines.append("2. Check how many of them appear in the validation set")
+    lines.append("3. Calculate hit rate (% of validated rules)")
     lines.append("")
-    lines.append("## Parametry")
+    lines.append("## Parameters")
     lines.append("")
     lines.append(f"- minsup: {MINSUP}, minconf: {MINCONF}, maxgap: {MAXGAP}, max_pattern_size: {MAX_PATTERN_SIZE}")
-    lines.append(f"- Filtry: BVP_ONLY={FILTER_BVP_ONLY}, EDA_ONLY={FILTER_EDA_ONLY}, "
+    lines.append(f"- Filters: BVP_ONLY={FILTER_BVP_ONLY}, EDA_ONLY={FILTER_EDA_ONLY}, "
                  f"PHYSIO_CROSS={FILTER_PHYSIO_CROSS}, SINGLE_FEATURE={FILTER_SINGLE_FEATURE}")
     lines.append("")
 
-    # Statystyki zbiorów
-    lines.append("## Statystyki zbiorów")
+    # Dataset stats
+    lines.append("## Dataset Statistics")
     lines.append("")
-    lines.append("| Zbiór | Uczestników | Reguł (surowe) | Reguł (po filtracji) |")
+    lines.append("| Dataset | Participants | Rules (raw) | Rules (filtered) |")
     lines.append("|-------|-------------|----------------|----------------------|")
     for ds in ds_names:
         armada, patterns, rules = all_results[ds]
         lines.append(f"| {ds} | {armada.num_clients} | {len(rules)} | {len(all_rule_sigs[ds])} |")
     lines.append("")
 
-    # Tabela podsumowująca
-    lines.append("## Wyniki walidacji krzyżowej")
+    # Summary table
+    lines.append("## Cross-Validation Results")
     lines.append("")
-    lines.append("| Trening | Walidacja | Reguły wspólne (trening) | Potwierdzone | Trafność |")
-    lines.append("|---------|-----------|--------------------------|--------------|----------|")
-    for cv in cv_results:
-        lines.append(f"| {cv['train1']} + {cv['train2']} | {cv['val']} | "
-                     f"{cv['common_train']} | {cv['validated']} | **{cv['hit_rate']:.1f}%** |")
+    lines.append(summary_df.to_markdown(index=False))
     lines.append("")
 
-    # Średnia trafność
-    avg_hit = sum(cv['hit_rate'] for cv in cv_results) / len(cv_results)
-    lines.append(f"**Średnia trafność walidacji: {avg_hit:.1f}%**")
+    # Top universal rules
+    lines.append("## Top 20 Universal Rules (by dataset count and conf)")
+    lines.append("")
+    if len(universal_df) > 0:
+        lines.append(universal_df.head(20).to_markdown(index=False))
+    else:
+        lines.append("No common rules found.")
     lines.append("")
 
-    # Reguły potwierdzone we wszystkich kombinacjach
-    lines.append("## Reguły potwierdzone we wszystkich 3 kombinacjach")
-    lines.append("")
-    n_all = len([r for r in universal_rules if r['Potwierdzenia (z 3)'] == 3])
-    lines.append(f"Liczba reguł potwierdzonych w każdej kombinacji: **{n_all}**")
-    lines.append("")
-
-    if n_all > 0:
-        lines.append("| # | Reguła | Śr. ufność | Śr. wsparcie | CASE conf | K-emoCon conf | CEAP conf |")
-        lines.append("|---|--------|------------|--------------|-----------|---------------|-----------|")
-        i = 1
-        for r in universal_rules:
-            if r['Potwierdzenia (z 3)'] == 3:
-                lines.append(f"| {i} | `{r['Reguła']}` | {r['Śr. conf']} | {r['Śr. sup']} | "
-                             f"{r.get('CASE conf', '-')} | {r.get('K-emoCon conf', '-')} | {r.get('CEAP conf', '-')} |")
-                i += 1
-        lines.append("")
-
-    # Reguły potwierdzone w 2 z 3 kombinacji
-    n_two = len([r for r in universal_rules if r['Potwierdzenia (z 3)'] == 2])
-    lines.append(f"## Reguły potwierdzone w 2 z 3 kombinacji: {n_two}")
-    lines.append("")
-    if n_two > 0:
-        lines.append("| # | Reguła | Śr. ufność | Śr. wsparcie | CASE conf | K-emoCon conf | CEAP conf |")
-        lines.append("|---|--------|------------|--------------|-----------|---------------|-----------|")
-        i = 1
-        for r in universal_rules:
-            if r['Potwierdzenia (z 3)'] == 2:
-                lines.append(f"| {i} | `{r['Reguła']}` | {r['Śr. conf']} | {r['Śr. sup']} | "
-                             f"{r.get('CASE conf', '-')} | {r.get('K-emoCon conf', '-')} | {r.get('CEAP conf', '-')} |")
-                i += 1
-        lines.append("")
-
-    # Podsumowanie
-    lines.append("## Podsumowanie")
-    lines.append("")
-    total_unique_validated = len(rule_counts)
-    lines.append(f"- Łącznie unikalnych reguł potwierdzonych w przynajmniej 1 kombinacji: **{total_unique_validated}**")
-    lines.append(f"- Potwierdzone we wszystkich 3 kombinacjach: **{n_all}**")
-    lines.append(f"- Potwierdzone w 2 z 3 kombinacji: **{n_two}**")
-    lines.append(f"- Potwierdzone w 1 z 3 kombinacji: **{total_unique_validated - n_all - n_two}**")
-    lines.append(f"- Średnia trafność walidacji: **{avg_hit:.1f}%**")
-    lines.append("")
-
-    # Zapisz raport
-    report_path = OUTPUT_DIR / "cross_validation_report.md"
-    with open(report_path, "w") as f:
+    with open(OUTPUT_DIR / "report.md", 'w') as f:
         f.write("\n".join(lines))
-    print(f"\nZapisano raport: {report_path}")
 
-    # Zapisz JSON z pełnymi wynikami
-    json_summary = {
-        'parameters': {
-            'minsup': MINSUP, 'minconf': MINCONF,
-            'maxgap': MAXGAP, 'max_pattern_size': MAX_PATTERN_SIZE,
-        },
-        'filters': {
-            'bvp_only': FILTER_BVP_ONLY, 'eda_only': FILTER_EDA_ONLY,
-            'physio_cross': FILTER_PHYSIO_CROSS, 'single_feature': FILTER_SINGLE_FEATURE,
-        },
-        'datasets': {
-            ds: {
-                'n_clients': all_results[ds][0].num_clients,
-                'n_rules_raw': len(all_results[ds][2]),
-                'n_rules_filtered': len(all_rule_sigs[ds]),
-            } for ds in ds_names
-        },
-        'cross_validation': [
-            {
-                'train': [cv['train1'], cv['train2']],
-                'val': cv['val'],
-                'common_train': cv['common_train'],
-                'validated': cv['validated'],
-                'hit_rate_pct': round(cv['hit_rate'], 2),
-            } for cv in cv_results
-        ],
-        'avg_hit_rate_pct': round(avg_hit, 2),
-        'rules_confirmed_in_all_3': n_all,
-        'rules_confirmed_in_2_of_3': n_two,
-    }
-    with open(OUTPUT_DIR / "cross_validation_summary.json", "w") as f:
-        json.dump(json_summary, f, indent=2)
-
-    print(f"Zapisano CSV: {OUTPUT_DIR / 'cross_validation_summary.csv'}")
-    print(f"Zapisano CSV: {OUTPUT_DIR / 'cross_validated_rules.csv'}")
-    print(f"Zapisano JSON: {OUTPUT_DIR / 'cross_validation_summary.json'}")
-
+    print(f"Report saved to: {OUTPUT_DIR / 'report.md'}")
 
 if __name__ == "__main__":
     run_cross_validation()
-
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Walidacja i wizualizacja danych przygotowanych dla algorytmu ARMADA.
+Validation and visualization of data prepared for ARMADA algorithm.
 
-Ten skrypt sprawdza poprawność formatu danych i generuje wizualizacje
-pomagające zrozumieć strukturę interwałów czasowych.
+This script checks data format correctness and generates visualizations
+to help understand the structure of time intervals.
 """
 
 import pandas as pd
@@ -13,40 +13,39 @@ from pathlib import Path
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
-# Ścieżki
 BASE_DIR = Path(__file__).parent.parent.parent.parent
 ARMADA_DIR = BASE_DIR / "data" / "armada_ready"
 OUTPUT_DIR = ARMADA_DIR / "validation"
 
 
 def load_armada_data(filepath: Path) -> pd.DataFrame:
-    """Wczytuje dane w formacie ARMADA."""
+    """Loads ARMADA format data."""
     df = pd.read_csv(filepath)
     return df
 
 
 def validate_intervals(df: pd.DataFrame) -> Dict:
     """
-    Waliduje poprawność interwałów czasowych.
+    Validates correctness of time intervals.
 
-    Sprawdza:
+    Checks:
     - start_time < end_time
-    - brak nakładających się interwałów tego samego stanu dla tego samego klienta
-    - poprawność wartości
+    - no overlapping intervals of the same state for the same client
+    - correctness of values
     """
     issues = []
 
-    # Sprawdź czy start < end
+    # Check if start < end
     invalid_times = df[df['start_time'] >= df['end_time']]
     if len(invalid_times) > 0:
         issues.append(f"Znaleziono {len(invalid_times)} interwałów gdzie start_time >= end_time")
 
-    # Sprawdź duplikaty
+    # Check duplicates
     duplicates = df[df.duplicated(['client_id', 'state', 'start_time', 'end_time'])]
     if len(duplicates) > 0:
         issues.append(f"Znaleziono {len(duplicates)} zduplikowanych interwałów")
 
-    # Sprawdź negatywne wartości czasowe
+    # Check negative time values
     negative_times = df[(df['start_time'] < 0) | (df['end_time'] < 0)]
     if len(negative_times) > 0:
         issues.append(f"Znaleziono {len(negative_times)} interwałów z ujemnymi czasami")
@@ -62,7 +61,7 @@ def validate_intervals(df: pd.DataFrame) -> Dict:
 
 def analyze_temporal_patterns(df: pd.DataFrame) -> Dict:
     """
-    Analizuje wzorce czasowe w danych.
+    Analyzes temporal patterns in data.
     """
     results = {
         'interval_durations': {},
@@ -70,14 +69,14 @@ def analyze_temporal_patterns(df: pd.DataFrame) -> Dict:
         'client_sequences': {}
     }
 
-    # Czas trwania interwałów per stan
+    # Interval durations per state
     df['duration'] = df['end_time'] - df['start_time']
     results['interval_durations'] = df.groupby('state')['duration'].agg(['mean', 'std', 'min', 'max']).to_dict()
 
-    # Częstość stanów
+    # State frequencies
     results['state_frequencies'] = df['state'].value_counts().to_dict()
 
-    # Długość sekwencji per klient
+    # Sequence length per client
     client_lens = df.groupby('client_id').size()
     results['client_sequences'] = {
         'mean_length': client_lens.mean(),
@@ -91,16 +90,16 @@ def analyze_temporal_patterns(df: pd.DataFrame) -> Dict:
 
 def compute_allen_relations_sample(df: pd.DataFrame, client_id: str, max_pairs: int = 100) -> Dict:
     """
-    Oblicza relacje Allena dla próbki interwałów.
+    Computes Allen's relations for a sample of intervals.
 
-    Relacje:
-    - before (b): A kończy się przed rozpoczęciem B
-    - meets (m): A kończy się dokładnie gdy B się zaczyna
-    - overlaps (o): A zaczyna się przed B, ale kończy w trakcie B
-    - is-finished-by (fi): A zaczyna się przed B i kończy gdy B się kończy
-    - contains (c): A zaczyna się przed B i kończy po B
-    - equals (=): A i B mają te same czasy
-    - starts (s): A zaczyna się gdy B, ale kończy wcześniej
+    Relations:
+    - before (b): A ends before B starts
+    - meets (m): A ends exactly when B starts
+    - overlaps (o): A starts before B, but ends during B
+    - is-finished-by (fi): A starts before B and ends when B ends
+    - contains (c): A starts before B and ends after B
+    - equals (=): A and B have the same times
+    - starts (s): A starts when B starts, but ends earlier
     """
     client_df = df[df['client_id'] == client_id].sort_values('start_time').reset_index(drop=True)
 
@@ -116,7 +115,7 @@ def compute_allen_relations_sample(df: pd.DataFrame, client_id: str, max_pairs: 
             a_start, a_end = client_df.iloc[i]['start_time'], client_df.iloc[i]['end_time']
             b_start, b_end = client_df.iloc[j]['start_time'], client_df.iloc[j]['end_time']
 
-            # Określ relację
+            # Determine relation
             if a_end < b_start:
                 relations['before'] += 1
             elif a_end == b_start:
@@ -141,7 +140,7 @@ def compute_allen_relations_sample(df: pd.DataFrame, client_id: str, max_pairs: 
 
 def visualize_client_timeline(df: pd.DataFrame, client_id: str, output_path: Path, max_time: float = None):
     """
-    Wizualizuje timeline interwałów dla danego klienta.
+    Visualizes interval timeline for a given client.
     """
     client_df = df[df['client_id'] == client_id].sort_values('start_time')
 
@@ -149,12 +148,12 @@ def visualize_client_timeline(df: pd.DataFrame, client_id: str, output_path: Pat
         print(f"Brak danych dla klienta {client_id}")
         return
 
-    # Unikalne stany
+    # Unique states
     states = client_df['state'].unique()
     state_colors = plt.cm.tab20(np.linspace(0, 1, len(states)))
     state_color_map = dict(zip(states, state_colors))
 
-    # Grupuj stany według kategorii
+    # Group states by category
     state_categories = defaultdict(list)
     for state in states:
         category = state.rsplit('_', 1)[0]  # np. arousal_high -> arousal
@@ -179,8 +178,8 @@ def visualize_client_timeline(df: pd.DataFrame, client_id: str, output_path: Pat
 
     ax.set_yticks(y_positions)
     ax.set_yticklabels(y_labels, fontsize=8)
-    ax.set_xlabel('Czas (sekundy)')
-    ax.set_title(f'Timeline interwałów: {client_id}')
+    ax.set_xlabel('Time (seconds)')
+    ax.set_title(f'Intervals timeline: {client_id}')
 
     if max_time:
         ax.set_xlim(0, max_time)
@@ -189,16 +188,16 @@ def visualize_client_timeline(df: pd.DataFrame, client_id: str, output_path: Pat
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-    print(f"Zapisano: {output_path}")
+    print(f"Saved: {output_path}")
 
 
 def visualize_state_distribution(df: pd.DataFrame, output_path: Path):
     """
-    Wizualizuje rozkład stanów w całym zbiorze danych.
+    Visualizes the distribution of states in the entire dataset.
     """
     state_counts = df['state'].value_counts()
 
-    # Grupuj według kategorii
+    # Group by category
     categories = defaultdict(dict)
     for state, count in state_counts.items():
         parts = state.rsplit('_', 1)
@@ -217,41 +216,41 @@ def visualize_state_distribution(df: pd.DataFrame, output_path: Path):
 
         ax.bar(labels, values, color=colors)
         ax.set_title(f'{category}')
-        ax.set_ylabel('Liczba interwałów')
+        ax.set_ylabel('Number of intervals')
 
         for i, v in enumerate(values):
             ax.text(i, v + max(values)*0.02, str(v), ha='center', fontsize=8)
 
-    # Ukryj nieużywane osie
+    # Hide unused axes
     for idx in range(len(categories), len(axes)):
         axes[idx].set_visible(False)
 
-    plt.suptitle('Rozkład stanów według kategorii', fontsize=14)
+    plt.suptitle('State distribution by category', fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-    print(f"Zapisano: {output_path}")
+    print(f"Saved: {output_path}")
 
 
 def visualize_interval_duration_distribution(df: pd.DataFrame, output_path: Path):
     """
-    Wizualizuje rozkład czasu trwania interwałów.
+    Visualizes the distribution of interval durations.
     """
     df['duration'] = df['end_time'] - df['start_time']
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-    # Histogram wszystkich czasów
+    # Histogram of all durations
     ax1 = axes[0]
     ax1.hist(df['duration'], bins=50, edgecolor='black', alpha=0.7)
-    ax1.set_xlabel('Czas trwania (sekundy)')
-    ax1.set_ylabel('Liczba interwałów')
-    ax1.set_title('Rozkład czasu trwania interwałów')
-    ax1.axvline(df['duration'].median(), color='red', linestyle='--', label=f'Mediana: {df["duration"].median():.1f}s')
+    ax1.set_xlabel('Duration (seconds)')
+    ax1.set_ylabel('Number of intervals')
+    ax1.set_title('Interval duration distribution')
+    ax1.axvline(df['duration'].median(), color='red', linestyle='--', label=f'Median: {df["duration"].median():.1f}s')
     ax1.legend()
 
-    # Box plot per kategoria
+    # Box plot per category
     ax2 = axes[1]
     state_categories = df['state'].apply(lambda x: x.rsplit('_', 1)[0])
     df_temp = df.copy()
@@ -261,21 +260,21 @@ def visualize_interval_duration_distribution(df: pd.DataFrame, output_path: Path
     data_per_cat = [df_temp[df_temp['category'] == cat]['duration'].values for cat in categories]
 
     bp = ax2.boxplot(data_per_cat, labels=categories, patch_artist=True)
-    ax2.set_xlabel('Kategoria stanu')
-    ax2.set_ylabel('Czas trwania (sekundy)')
-    ax2.set_title('Rozkład czasu trwania per kategoria')
+    ax2.set_xlabel('State category')
+    ax2.set_ylabel('Duration (seconds)')
+    ax2.set_title('Duration distribution per category')
     ax2.tick_params(axis='x', rotation=45)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-    print(f"Zapisano: {output_path}")
+    print(f"Saved: {output_path}")
 
 
 def generate_armada_input_format(df: pd.DataFrame, output_path: Path):
     """
-    Generuje plik w formacie bezpośrednio kompatybilnym z wieloma implementacjami ARMADA.
+    Generates a file in a format directly compatible with many ARMADA implementations.
 
     Format:
     SEQUENCE client_id
@@ -291,91 +290,79 @@ def generate_armada_input_format(df: pd.DataFrame, output_path: Path):
                 f.write(f"{row['state']} {row['start_time']} {row['end_time']}\n")
             f.write("\n")
 
-    print(f"Zapisano format ARMADA: {output_path}")
+    print(f"Saved ARMADA format: {output_path}")
 
 
 def main():
-    """Główna funkcja walidacji i wizualizacji."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
-    print("WALIDACJA I WIZUALIZACJA DANYCH ARMADA")
+    print("ARMADA DATA VALIDATION AND VISUALIZATION")
     print("=" * 60)
 
-    # Wczytaj dane
     data_file = ARMADA_DIR / "armada_full_metadata.csv"
     if not data_file.exists():
-        print(f"Plik {data_file} nie istnieje. Uruchom najpierw prepare_armada_data.py")
+        print(f"File {data_file} does not exist. Run prepare_armada_data.py first")
         return
 
     df = load_armada_data(data_file)
-    print(f"Wczytano {len(df)} interwałów")
+    print(f"Loaded {len(df)} intervals")
 
-    # Walidacja
     print("\n" + "-" * 40)
-    print("WALIDACJA")
+    print("VALIDATION")
     print("-" * 40)
 
     validation = validate_intervals(df)
     if validation['valid']:
-        print("✓ Wszystkie interwały są poprawne")
+        print("✓ All intervals are correct")
     else:
-        print("✗ Znaleziono problemy:")
+        print("✗ Found issues:")
         for issue in validation['issues']:
             print(f"  - {issue}")
 
-    print(f"Łączna liczba interwałów: {validation['total_intervals']}")
-    print(f"Liczba klientów: {validation['unique_clients']}")
-    print(f"Liczba stanów: {validation['unique_states']}")
+    print(f"Total number of intervals: {validation['total_intervals']}")
+    print(f"Number of clients: {validation['unique_clients']}")
+    print(f"Number of states: {validation['unique_states']}")
 
-    # Analiza wzorców
     print("\n" + "-" * 40)
-    print("ANALIZA WZORCÓW CZASOWYCH")
+    print("TEMPORAL PATTERN ANALYSIS")
     print("-" * 40)
 
     analysis = analyze_temporal_patterns(df)
-    print(f"Średnia długość sekwencji klienta: {analysis['client_sequences']['mean_length']:.1f}")
-    print(f"Zakres długości sekwencji: {analysis['client_sequences']['min_length']}-{analysis['client_sequences']['max_length']}")
+    print(f"Average client sequence length: {analysis['client_sequences']['mean_length']:.1f}")
+    print(f"Sequence length range: {analysis['client_sequences']['min_length']}-{analysis['client_sequences']['max_length']}")
 
-    # Relacje Allena dla przykładowego klienta
     sample_client = df['client_id'].iloc[0]
     allen_relations = compute_allen_relations_sample(df, sample_client)
-    print(f"\nPróbka relacji Allena dla {sample_client}:")
+    print(f"\nSample of Allen's relations for {sample_client}:")
     for rel, count in sorted(allen_relations.items(), key=lambda x: -x[1]):
         print(f"  {rel}: {count}")
 
-    # Wizualizacje
     print("\n" + "-" * 40)
-    print("GENEROWANIE WIZUALIZACJI")
+    print("GENERATING VISUALIZATIONS")
     print("-" * 40)
 
-    # Rozkład stanów
     visualize_state_distribution(df, OUTPUT_DIR / "state_distribution.png")
-
-    # Rozkład czasu trwania
     visualize_interval_duration_distribution(df, OUTPUT_DIR / "duration_distribution.png")
 
-    # Timeline dla kilku przykładowych klientów
     sample_clients = df['client_id'].unique()[:3]
     for client_id in sample_clients:
         safe_name = client_id.replace('-', '_').replace(' ', '_')
         visualize_client_timeline(df, client_id, OUTPUT_DIR / f"timeline_{safe_name}.png", max_time=300)
 
-    # Generuj format wejściowy ARMADA
     print("\n" + "-" * 40)
-    print("GENEROWANIE FORMATU ARMADA")
+    print("GENERATING ARMADA FORMAT")
     print("-" * 40)
 
     generate_armada_input_format(df, ARMADA_DIR / "armada_sequences.txt")
 
-    # Generuj też wersje per zbiór
     for dataset in df['dataset'].unique():
         dataset_df = df[df['dataset'] == dataset]
         safe_dataset = dataset.lower().replace('-', '_')
         generate_armada_input_format(dataset_df, ARMADA_DIR / f"armada_sequences_{safe_dataset}.txt")
 
     print("\n" + "=" * 60)
-    print("ZAKOŃCZONO")
+    print("FINISHED")
     print("=" * 60)
 
 
