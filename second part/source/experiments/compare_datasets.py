@@ -6,12 +6,6 @@ Compare ARMADA patterns between datasets.
 2. Compares discovered patterns and rules.
 3. Finds common patterns across all datasets.
 4. Generates a comparison report.
-
-Parameters:
-- minsup: 0.2 (20% support)
-- minconf: 0.3 (30% confidence)
-- maxgap: 60 seconds
-- max_pattern_size: 2
 """
 
 import sys
@@ -22,7 +16,6 @@ from collections import defaultdict
 from typing import Dict, List, Set, Tuple
 import matplotlib.pyplot as plt
 
-# Add modules path
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_DIR = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
@@ -36,7 +29,7 @@ from armada_algorithm import ARMADA
 MINSUP = 0.3       # 20% minimum support
 MINCONF = 0.5      # 30% minimum confidence
 MAXGAP = 10       # 60s max gap
-MAX_PATTERN_SIZE = 2  # max depth 2
+MAX_PATTERN_SIZE = 3  # max depth 2
 
 # ============================================================================
 # RULE FILTERS
@@ -48,7 +41,7 @@ FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True
 
 # True -> reject rules where ALL states are peripheral signals (EDA + BVP/HRV/HR) without arousal/valence/temp
-FILTER_PHYSIO_CROSS = False
+FILTER_PHYSIO_CROSS = True
 
 # True -> reject rules where all states are of the same feature type
 FILTER_SINGLE_FEATURE = True
