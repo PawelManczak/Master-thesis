@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Experiment: Find Universal Rules Across All Datasets By Gender
+Experiment: Find Universal Rules Across All Datasets By Age
 
 1. Loads 4 datasets and corresponding demographic data.
 2. Splits each dataset into Male (M) and Female (F) subsets.
 3. Runs ARMADA on Male and Female subsets separately across all datasets.
-4. Finds purely "Universal Male Rules" (present in ALL evaluated datasets for Men).
-5. Finds purely "Universal Female Rules" (present in ALL evaluated datasets for Women).
+4. Finds purely "Universal Young Rules" (present in ALL evaluated datasets for Young).
+5. Finds purely "Universal Old Rules" (present in ALL evaluated datasets for Old).
 6. Generates metrics tracking how often these rules appear for each group globally.
 """
 
@@ -62,11 +62,11 @@ except ImportError as e:
     sys.exit(1)
 
 
-def save_gender_universal_rules_details(
+def save_age_universal_rules_details(
     universal_rules: Set[str],
     all_results: Dict[str, Tuple],
     output_dir: Path,
-    gender_tag: str
+    age_tag: str
 ) -> pd.DataFrame:
     """Saves details of universal rules with per-dataset metrics for specific gender."""
     details = []
@@ -100,26 +100,26 @@ def save_gender_universal_rules_details(
     if 'avg_confidence' in df.columns:
         df = df.sort_values('avg_confidence', ascending=False)
     
-    df.to_csv(output_dir / f"universal_{gender_tag}_rules_details.csv", index=False)
+    df.to_csv(output_dir / f"universal_{age_tag}_rules_details.csv", index=False)
     return df
 
 
 def generate_markdown_report(
     datasets_count: int,
     stats_data: Dict[str, Dict],
-    universal_rules_m: Set[str],
-    universal_rules_f: Set[str],
-    df_m: pd.DataFrame,
-    df_f: pd.DataFrame,
+    universal_rules_young: Set[str],
+    universal_rules_old: Set[str],
+    df_young: pd.DataFrame,
+    df_old: pd.DataFrame,
     output_dir: Path,
     dataset_names: List[str]
 ) -> None:
-    """Generates the Markdown report analyzing rules by gender."""
+    """Generates the Markdown report analyzing rules by age."""
 
     lines = []
-    lines.append("# Universal Rules by Gender Experiment")
+    lines.append("# Universal Rules by Age Experiment")
     lines.append("")
-    lines.append("This experiment aims to identify rules that are universally true across all evaluated datasets, split solely by demographic gender subsets (Male vs Female).")
+    lines.append("This experiment aims to identify rules that are universally true across all evaluated datasets, split solely by demographic age subsets (Young <= 25 vs Old > 25).")
     lines.append("")
     lines.append("## Experiment Parameters")
     lines.append("")
@@ -133,37 +133,37 @@ def generate_markdown_report(
     lines.append("## Dataset Processing")
     lines.append("")
     
-    lines.append("| Dataset | Participants (M) | Participants (F) | Rules Filtered (M) | Rules Filtered (F) |")
+    lines.append("| Dataset | Participants (Young) | Participants (Old) | Rules Filtered (Young) | Rules Filtered (Old) |")
     lines.append("|-------|-------------|---------|-------|-------|")
 
     for ds_name in dataset_names:
         stats = stats_data.get(ds_name, {})
         lines.append(
             f"| **{ds_name}** "
-            f"| {stats.get('M_clients', 0)} "
-            f"| {stats.get('F_clients', 0)} "
-            f"| {stats.get('M_filtered', 0)} "
-            f"| {stats.get('F_filtered', 0)} |"
+            f"| {stats.get('young_clients', 0)} "
+            f"| {stats.get('old_clients', 0)} "
+            f"| {stats.get('young_filtered', 0)} "
+            f"| {stats.get('old_filtered', 0)} |"
         )
     lines.append("")
 
     # Universal comparison summary
-    common_both = universal_rules_m & universal_rules_f
-    unique_m = universal_rules_m - universal_rules_f
-    unique_f = universal_rules_f - universal_rules_m
+    common_both = universal_rules_young & universal_rules_old
+    unique_young = universal_rules_young - universal_rules_old
+    unique_old = universal_rules_old - universal_rules_young
 
-    lines.append("## Gender Universal Rules Identification")
+    lines.append("## Age Universal Rules Identification")
     lines.append("")
-    lines.append(f"- **Universal rules found in ALL datasets for Males (M)**: {len(universal_rules_m)}")
-    lines.append(f"- **Universal rules found in ALL datasets for Females (F)**: {len(universal_rules_f)}")
-    lines.append(f"- **Universal rules spanning across BOTH Genders**: {len(common_both)}")
-    lines.append(f"- **Universal rules UNIQUELY for Males (M)**: {len(unique_m)}")
-    lines.append(f"- **Universal rules UNIQUELY for Females (F)**: {len(unique_f)}")
+    lines.append(f"- **Universal rules found in ALL datasets for Young**: {len(universal_rules_young)}")
+    lines.append(f"- **Universal rules found in ALL datasets for Old**: {len(universal_rules_old)}")
+    lines.append(f"- **Universal rules spanning across BOTH Age Groups**: {len(common_both)}")
+    lines.append(f"- **Universal rules UNIQUELY for Young**: {len(unique_young)}")
+    lines.append(f"- **Universal rules UNIQUELY for Old**: {len(unique_old)}")
     lines.append("")
 
     # MALE TABLE
-    if len(df_m) > 0:
-        lines.append(f"### Universal Rules for Males (Top metrics globally)")
+    if len(df_young) > 0:
+        lines.append(f"### Universal Rules for Young (Top metrics globally)")
         lines.append("")
         ds_headers = " | ".join(dataset_names)
         header = f"| Rule | Avg Conf | Avg Sup | Min Conf | Min Sup | {ds_headers} |"
@@ -171,7 +171,7 @@ def generate_markdown_report(
         lines.append(header)
         lines.append(separator)
 
-        for _, row in df_m.iterrows():
+        for _, row in df_young.iterrows():
             avg_conf = f"{row.get('avg_confidence', 0):.3f}"
             avg_sup = f"{row.get('avg_support', 0):.3f}"
             min_conf = f"{row.get('min_confidence', 0):.3f}"
@@ -181,7 +181,7 @@ def generate_markdown_report(
             rule_str = f"`{row['rule']}`"
             if row['rule'] in common_both:
                 rule_str += " *(common)*"
-            elif row['rule'] in unique_m:
+            elif row['rule'] in unique_young:
                 rule_str += " *(unique)*"
 
             line_parts = [f"| {rule_str} | **{avg_conf}** | {avg_sup} | {min_conf} | {min_sup} |"]
@@ -201,8 +201,8 @@ def generate_markdown_report(
         lines.append("")
 
     # FEMALE TABLE
-    if len(df_f) > 0:
-        lines.append(f"### Universal Rules for Females (Top metrics globally)")
+    if len(df_old) > 0:
+        lines.append(f"### Universal Rules for Old (Top metrics globally)")
         lines.append("")
         ds_headers = " | ".join(dataset_names)
         header = f"| Rule | Avg Conf | Avg Sup | Min Conf | Min Sup | {ds_headers} |"
@@ -210,7 +210,7 @@ def generate_markdown_report(
         lines.append(header)
         lines.append(separator)
 
-        for _, row in df_f.iterrows():
+        for _, row in df_old.iterrows():
             avg_conf = f"{row.get('avg_confidence', 0):.3f}"
             avg_sup = f"{row.get('avg_support', 0):.3f}"
             min_conf = f"{row.get('min_confidence', 0):.3f}"
@@ -220,7 +220,7 @@ def generate_markdown_report(
             rule_str = f"`{row['rule']}`"
             if row['rule'] in common_both:
                 rule_str += " *(common)*"
-            elif row['rule'] in unique_f:
+            elif row['rule'] in unique_old:
                 rule_str += " *(unique)*"
 
             line_parts = [f"| {rule_str} | **{avg_conf}** | {avg_sup} | {min_conf} | {min_sup} |"]
@@ -241,10 +241,10 @@ def generate_markdown_report(
 
     # Save report
     report_text = "\n".join(lines)
-    with open(output_dir / "gender_universal_rules_report.md", "w") as f:
+    with open(output_dir / "age_universal_rules_report.md", "w") as f:
         f.write(report_text)
 
-    print(f"Report saved to: {output_dir / 'gender_universal_rules_report.md'}")
+    print(f"Report saved to: {output_dir / 'age_universal_rules_report.md'}")
 
 
 def main():
@@ -255,7 +255,7 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 80)
-    print("EXPERIMENT: GENDER UNIVERSAL RULES DETECTION")
+    print("EXPERIMENT: AGE UNIVERSAL RULES DETECTION")
     print("=" * 80)
     
     # 1. Load overarching demographic context
@@ -280,11 +280,11 @@ def main():
             print(f"ERROR: Dataset file {data_file} does not exist!")
             sys.exit(1)
 
-    all_results_m = {}
-    all_results_f = {}
+    all_results_young = {}
+    all_results_old = {}
     
-    rules_signatures_m = {}
-    rules_signatures_f = {}
+    rules_signatures_young = {}
+    rules_signatures_old = {}
     
     # Metric tracking
     stats_data = {}
@@ -302,90 +302,90 @@ def main():
         print(f"DEBUG: {ds_name} df client_ids example: {df['client_id'].unique()[:3]}")
         print(f"DEBUG: {ds_name} ds_demo client_ids example: {ds_demo['client_id'].unique()[:3]}")
         
-        # Split internally into nested partitions: M and F 
-        groups = split_data_by_group(df, ds_demo, 'gender_clean')
+        # Split internally into nested partitions: young and old
+        groups = split_data_by_group(df, ds_demo, 'binary_age_group')
         
         # MALE GROUP PROCESSING
-        if 'M' in groups and len(groups['M']['client_id'].unique()) >= 1:
-            print(f"\n  [MALE] Running ARMADA for {ds_name}...")
-            armada_m, patterns_m, rules_m = run_armada_on_df(groups['M'], MINSUP, MINCONF, MAXGAP, MAX_PATTERN_SIZE)
-            all_results_m[ds_name] = (armada_m, patterns_m, rules_m)
+        if 'young' in groups and len(groups['young']['client_id'].unique()) >= 1:
+            print(f"\n  [YOUNG] Running ARMADA for {ds_name}...")
+            armada_young, patterns_young, rules_young = run_armada_on_df(groups['young'], MINSUP, MINCONF, MAXGAP, MAX_PATTERN_SIZE)
+            all_results_young[ds_name] = (armada_young, patterns_young, rules_young)
             
-            raw_sigs_m = extract_rule_signatures(rules_m)
-            filtered_sigs_m = filter_rules(raw_sigs_m, FILTER_BVP_ONLY, FILTER_EDA_ONLY, FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
-            rules_signatures_m[ds_name] = filtered_sigs_m
+            raw_sigs_young = extract_rule_signatures(rules_young)
+            filtered_sigs_young = filter_rules(raw_sigs_young, FILTER_BVP_ONLY, FILTER_EDA_ONLY, FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
+            rules_signatures_young[ds_name] = filtered_sigs_young
             
-            print(f"    Raw Rules: {len(rules_m)}, Filtered: {len(filtered_sigs_m)}, Clients: {armada_m.num_clients}")
-            m_clients = armada_m.num_clients
-            m_filtered = len(filtered_sigs_m)
+            print(f"    Raw Rules: {len(rules_young)}, Filtered: {len(filtered_sigs_young)}, Clients: {armada_young.num_clients}")
+            young_clients_var = armada_young.num_clients
+            young_filtered_var = len(filtered_sigs_young)
         else:
-            print(f"  [MALE] Skipping {ds_name} - No Male Participants found.")
-            rules_signatures_m[ds_name] = set()
-            m_clients = 0
-            m_filtered = 0
+            print(f"  [YOUNG] Skipping {ds_name} - No Young Participants found.")
+            rules_signatures_young[ds_name] = set()
+            young_clients_var = 0
+            young_filtered_var = 0
             
         # FEMALE GROUP PROCESSING
-        if 'F' in groups and len(groups['F']['client_id'].unique()) >= 1:
-            print(f"\n  [FEMALE] Running ARMADA for {ds_name}...")
-            armada_f, patterns_f, rules_f = run_armada_on_df(groups['F'], MINSUP, MINCONF, MAXGAP, MAX_PATTERN_SIZE)
-            all_results_f[ds_name] = (armada_f, patterns_f, rules_f)
+        if 'old' in groups and len(groups['old']['client_id'].unique()) >= 1:
+            print(f"\n  [OLD] Running ARMADA for {ds_name}...")
+            armada_old, patterns_old, rules_old = run_armada_on_df(groups['old'], MINSUP, MINCONF, MAXGAP, MAX_PATTERN_SIZE)
+            all_results_old[ds_name] = (armada_old, patterns_old, rules_old)
             
-            raw_sigs_f = extract_rule_signatures(rules_f)
-            filtered_sigs_f = filter_rules(raw_sigs_f, FILTER_BVP_ONLY, FILTER_EDA_ONLY, FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
-            rules_signatures_f[ds_name] = filtered_sigs_f
+            raw_sigs_old = extract_rule_signatures(rules_old)
+            filtered_sigs_old = filter_rules(raw_sigs_old, FILTER_BVP_ONLY, FILTER_EDA_ONLY, FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
+            rules_signatures_old[ds_name] = filtered_sigs_old
             
-            print(f"    Raw Rules: {len(rules_f)}, Filtered: {len(filtered_sigs_f)}, Clients: {armada_f.num_clients}")
-            f_clients = armada_f.num_clients
-            f_filtered = len(filtered_sigs_f)
+            print(f"    Raw Rules: {len(rules_old)}, Filtered: {len(filtered_sigs_old)}, Clients: {armada_old.num_clients}")
+            old_clients_var = armada_old.num_clients
+            old_filtered_var = len(filtered_sigs_old)
         else:
-            print(f"  [FEMALE] Skipping {ds_name} - No Female Participants found.")
-            rules_signatures_f[ds_name] = set()
-            f_clients = 0
-            f_filtered = 0
+            print(f"  [OLD] Skipping {ds_name} - No Old Participants found.")
+            rules_signatures_old[ds_name] = set()
+            old_clients_var = 0
+            old_filtered_var = 0
             
         stats_data[ds_name] = {
-            'M_clients': m_clients, 'M_filtered': m_filtered,
-            'F_clients': f_clients, 'F_filtered': f_filtered
+            'young_clients': young_clients_var, 'young_filtered': young_filtered_var,
+            'old_clients': old_clients_var, 'old_filtered': old_filtered_var
         }
 
 
     print("\n" + "=" * 80)
-    print("CALCULATING GENDER-WISE UNIVERSAL INTERSECTIONS")
+    print("CALCULATING AGE-WISE UNIVERSAL INTERSECTIONS")
     print("=" * 80)
 
     dataset_names = list(datasets.keys())
     
     # Men global intersection
-    universal_m = set(rules_signatures_m[dataset_names[0]])
+    universal_young = set(rules_signatures_young[dataset_names[0]])
     for ds_name in dataset_names[1:]:
-        universal_m &= rules_signatures_m[ds_name]
+        universal_young &= rules_signatures_young[ds_name]
         
     # Female global intersection
-    universal_f = set(rules_signatures_f[dataset_names[0]])
+    universal_old = set(rules_signatures_old[dataset_names[0]])
     for ds_name in dataset_names[1:]:
-        universal_f &= rules_signatures_f[ds_name]
+        universal_old &= rules_signatures_old[ds_name]
         
-    print(f"\nUniversal Rules across all datasets for MEN (M): {len(universal_m)}")
-    print(f"Universal Rules across all datasets for WOMEN (F): {len(universal_f)}")
-    print(f"Rules common to BOTH genders globally: {len(universal_m & universal_f)}")
+    print(f"\nUniversal Rules across all datasets for YOUNG: {len(universal_young)}")
+    print(f"Universal Rules across all datasets for OLD: {len(universal_old)}")
+    print(f"Rules common to BOTH age groups globally: {len(universal_young & universal_old)}")
     
     # Save CSV outputs
-    df_m = pd.DataFrame()
-    df_f = pd.DataFrame()
+    df_young = pd.DataFrame()
+    df_old = pd.DataFrame()
     
-    if len(universal_m) > 0:
-        df_m = save_gender_universal_rules_details(universal_m, all_results_m, OUTPUT_DIR, "male")
-    if len(universal_f) > 0:
-        df_f = save_gender_universal_rules_details(universal_f, all_results_f, OUTPUT_DIR, "female")
+    if len(universal_young) > 0:
+        df_young = save_age_universal_rules_details(universal_young, all_results_young, OUTPUT_DIR, "young")
+    if len(universal_old) > 0:
+        df_old = save_age_universal_rules_details(universal_old, all_results_old, OUTPUT_DIR, "old")
         
     # Write aggregated metrics globally via MD report
     generate_markdown_report(
         datasets_count=len(dataset_names),
         stats_data=stats_data,
-        universal_rules_m=universal_m,
-        universal_rules_f=universal_f,
-        df_m=df_m,
-        df_f=df_f,
+        universal_rules_young=universal_young,
+        universal_rules_old=universal_old,
+        df_young=df_young,
+        df_old=df_old,
         output_dir=OUTPUT_DIR,
         dataset_names=dataset_names
     )
