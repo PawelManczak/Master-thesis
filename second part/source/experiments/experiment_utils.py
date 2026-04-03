@@ -100,17 +100,25 @@ def is_eda_only_rule(rule_signature: str) -> bool:
 
 def is_physio_cross_rule(rule_signature: str) -> bool:
     """
-    Checks if a rule contains ONLY physiological states (EDA + BVP/HR/HRV)
-    (rejects rules with listed emotions: arousal, valence, or temp).
+    Checks if a rule should be filtered out based on emotion/temp criteria.
+    Returns True (= reject) if the rule:
+      - does NOT contain any arousal/valence state, OR
+      - contains any temperature state.
+    In other words, only rules that include arousal/valence AND exclude temp will pass.
     """
     states = _clean_rule_signature(rule_signature)
     if not states: return False
-    for state in states:
-        is_eda = any(state.startswith(prefix) for prefix in EDA_PREFIXES)
-        is_bvp = any(state.startswith(prefix) for prefix in BVP_PREFIXES)
-        if not (is_eda or is_bvp):
-            return False
-    return True
+
+    has_emotion = any(
+        state.startswith('arousal') or state.startswith('valence')
+        for state in states
+    )
+    has_temp = any(state.startswith('temp') for state in states)
+
+    # Reject if no emotion component or if temp is present
+    if not has_emotion or has_temp:
+        return True
+    return False
 
 def is_single_feature_rule(rule_signature: str) -> bool:
     """Checks if a rule concerns only one feature (e.g. only arousal_* states)."""
