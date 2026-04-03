@@ -61,3 +61,5 @@ csv_analysis_*.txt
 /second part/source/experiments/universal_rules/results
 /second part/source/experiments/external_annotations/results
 /second part/source/experiments/self_vs_external/results
+/second part/source/experiments/state_distribution/results
+/second part/source/experiments/emotion_labels/results
