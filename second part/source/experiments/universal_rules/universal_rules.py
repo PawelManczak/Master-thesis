@@ -28,7 +28,7 @@ sys.path.insert(0, str(EXPERIMENTS_DIR))
 # ============================================================================
 MINSUP = 0.1       # 30% minimum support
 MINCONF = 0.1      # 50% minimum confidence
-MAXGAP = 30       # 10s max gap
+MAXGAP = 20       # 10s max gap
 MAX_PATTERN_SIZE = 2  # max depth 3
 
 # ============================================================================
@@ -41,7 +41,7 @@ FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True
 
 # True -> reject rules where ALL states are peripheral signals (EDA + BVP/HRV/HR) without arousal/valence/temp
-FILTER_PHYSIO_CROSS = False
+FILTER_PHYSIO_CROSS = True
 
 # True -> reject rules where all states are of the same feature type
 FILTER_SINGLE_FEATURE = True
