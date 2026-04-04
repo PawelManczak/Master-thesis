@@ -1,0 +1,279 @@
+\documentclass{isd}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+%\graphicspath{{/home/damir/Pictures/}} %if pictures not in current directory of tex file
+
+\begin{comment}
+\usepackage[backend=biber, style=numeric, giveninits=true, maxbibnames=99]{biblatex}
+\addbibresource{references.bib} % Replace with your .bib file
+
+\DeclareNameFormat{family-given}{%
+  \nameparts{#1}%
+  \usebibmacro{name:family-given}
+    {\namepartfamily}
+    {\namepartgiveni} % Use given-name initials
+    {\namepartprefix}
+    {\namepartsuffix}
+  \usebibmacro{name:andothers}}
+
+% Suppressing DOI, ISSN, ISBN from bibliography entries
+\DeclareFieldFormat{doi}{}
+\DeclareFieldFormat{issn}{}
+\DeclareFieldFormat{isbn}{}
+  
+\DeclareNameAlias{default}{family-given}
+\DeclareNameAlias{sortname}{default}
+\DeclareFieldFormat[article,book,inbook,inproceedings]{title}{#1}
+\renewcommand*{\labelnamepunct}{\addcolon\space}
+\end{comment}
+
+\usepackage{etoolbox}
+\appto{\bibsetup}{\setlength{\itemsep}{0pt}}
+
+
+
+
+\newcommand{\mj}[2]{#1\hspace*{1.5pt}#2}
+
+\begin{document}
+
+
+\title{Using the ARMADA Algorithm to Analyze Physiological Marker Patterns in Presumed Emotional States}
+
+\author[Author et al.]{Paweł Mańczak}
+
+\email{s188756@student.pg.edu.pl}
+
+\institution{Gdańsk University of Technology}
+
+\city{Gdańsk}
+
+\country{Poland}
+
+\maketitle
+
+\begin{abstract}
+This paper presents a methodology for cross-dataset physiological rule mining to identify universal and transferable emotion-related patterns. Leveraging the EMBOA and K-emoCon datasets, we standardize diverse external and self-reported annotations into a unified multi-resolution window framework. The ARMADA algorithm is utilized to extract insightful physiological rules from cardiovascular and electrodermal signals. We conduct extensive comparative analyses, including leave-one-out and gender-based evaluations, to assess pattern stability across different experimental setups. Our findings aim to enhance the generalizability of physiological emotion recognition systems.\par\vspace*{2mm}
+\textbf{Keywords:} Physiological Rule Mining, Emotion Recognition, ARMADA Algorithm, Affective Computing, Cross-Dataset Analysis
+\end{abstract}
+
+
+\section{Introduction}
+Emotion recognition through physiological signals has become a focal point in Affective Computing \cite{picard1997affective}, offering the potential for objective and continuous assessment of human emotional states. Signals such as electrodermal activity (EDA) and cardiovascular metrics (e.g., heart rate, blood volume pulse) have shown significant correlations with emotional arousal and valence. However, a major challenge in the field remains the generalizability of predictive models and identified physiological patterns. Many studies are constrained to single, highly controlled laboratory datasets, raising questions about whether the discovered physiological-emotional mappings are universal or merely artifacts of specific experimental setups and annotation methodologies \cite{schuller2011cross}.\par
+
+Furthermore, emotion datasets often employ heterogeneous paradigms for labeling. For instance, the K-emoCon dataset \cite{park2020kemocon} incorporates self-reported psychological states and external annotations, whereas the EMBOA dataset \cite{emboa2024} utilizes external behavioral annotations. This discrepancy in labeling frameworks complicates cross-dataset comparison and limits the development of unified emotion recognition models. To address this, it is crucial to establish standardized methodologies for processing multimodal data and extracting robust patterns that transcend individual dataset constraints.\par
+
+In this paper, we propose a cross-dataset physiological rule mining framework designed to discover universal and transferable emotional patterns. By standardizing the external and self-reported annotations from both EMBOA and K-emoCon datasets into a unified multi-resolution time window format, we establish a common ground for comparative analysis. We utilize the ARMADA algorithm \cite{armada2025} to mine association rules between physiological responses and emotional states. The stability and robustness of these rules are then evaluated across different experimental backgrounds, utilizing leave-one-out and gender-based analyses.\par
+
+The remainder of this paper is organized as follows: Section 2 reviews related work in physiological emotion recognition and rule mining. Section 3 details our methodology, including data standardization and the ARMADA analytical approach. Section 4 presents the experimental setup, while Section 5 discusses the results of our comparative analysis. Finally, Section 6 concludes the paper and outlines directions for future research.
+
+
+\section{Datasets and Modalities}
+
+\subsection{Datasets}
+Although a broader range of affective datasets exists \cite{ometov2025stress}, in this work we focused on those that combine multimodal physiological recordings with relatively continuous or densely sampled emotion annotations and for which data access could be obtained.\par
+
+The analysis was conducted on five multimodal emotion datasets: EMBOA, K-emoCon, CASE, CEAP-360VR, and EmoWorker \cite{kiejdo2025late,park2020k,sharma2019dataset,xue2021ceap,lee2026multimodal}. These datasets differ in both acquisition setting and annotation protocol, covering controlled laboratory recordings as well as conversational and immersive VR scenarios. They also include both self-reported annotations and externally assigned labels, which makes them suitable for evaluating rule mining under heterogeneous emotion-labeling schemes.
+
+More specifically, EMBOA was collected in a human-robot interaction setting and combines Empatica E4 peripheral signals with externally assigned behavioral annotations \cite{kiejdo2025late}, whereas K-emoCon captures dyadic conversations and provides self, partner, and external affective ratings alongside physiological recordings \cite{park2020k}. CASE represents a controlled laboratory dataset with high-resolution physiological signals and continuous self-assessment gathered using a joystick interface \cite{sharma2019dataset}, while CEAP-360VR extends this paradigm to immersive \(360^\circ\) audiovisual stimulation in virtual reality \cite{xue2021ceap}. EmoWorker, in turn, provides multimodal physiological recordings acquired in a workplace-related context together with continuous affect annotations \cite{lee2026multimodal}. The annotation schemes used in the evaluated datasets are summarized in Table~1.
+
+\begin{table}[!h]
+\small
+\centering
+\caption{Annotation methodologies and frequencies across evaluated datasets.}
+\label{tab:annotations}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{|l|p{7cm}|p{3.5cm}|}
+\hline
+\textbf{Dataset} & \textbf{Annotation Type} & \textbf{Annotation Freq.} \\
+\hline
+EMBOA & External (BORIS) & Variable \\
+\hline
+K-emoCon & Self, Partner, External & 0.2 Hz (every 5s) \\
+\hline
+CASE & Self (Continuous Joystick) & 20 Hz \\
+\hline
+CEAP-360VR & Self (Continuous + SAM Questionnaire) & 10 Hz \\
+\hline
+EmoWorker & Self (Continuous traces) & 5-10 Hz \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\subsection{Modalities}
+The datasets further vary in the physiological modalities and sampling rates they provide. While several of them share common peripheral signals, such as Electrodermal Activity (EDA) and Blood Volume Pulse (BVP), others additionally include modalities such as ECG, EEG, respiration, eye tracking, or motion-related signals \cite{kiejdo2025late,park2020k,sharma2019dataset,xue2021ceap,lee2026multimodal}. The physiological modalities considered in our experiments are listed in Table~\ref{tab:modalities}.
+
+\begin{table}[!h]
+\small
+\centering
+\caption{Primary physiological modalities and sampling frequencies across evaluated datasets.}
+\label{tab:modalities}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{|l|p{10cm}|}
+\hline
+\textbf{Dataset} & \textbf{Physiological Frequencies} \\
+\hline
+EMBOA & EDA (4Hz), BVP (64Hz), ACC (32Hz), SKT (4Hz) \\
+\hline
+K-emoCon & EDA (4Hz), BVP (64Hz), ACC (32Hz), SKT (4Hz), EEG, ECG \\
+\hline
+CASE & EDA, BVP, ECG, RSP, EMG, SKT (All 1000Hz) \\
+\hline
+CEAP-360VR & EDA (4Hz), BVP (64Hz), ACC (64Hz), SKT (4Hz), Eye tracking \\
+\hline
+EmoWorker & EDA (4Hz), BVP (64Hz), ACC (32Hz), SKT (4Hz), ECG (130Hz), EEG (256Hz) \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+To facilitate a unified comparative analysis and enable the ARMADA-based rule mining process, data from all disparate sources was resampled, synchronized, and aligned into standardized 5-second multi-resolution time windows.\par
+
+The common modalities used in the cross-dataset analysis were EDA, BVP, and skin temperature (SKT). These signals were selected because they are available in most of the analyzed datasets and provide some information about autonomic aspects of emotional responses.
+
+Electrodermal activity (EDA) reflects changes in skin conductance driven mainly by sympathetic nervous system activation \cite{jang2014relationship}. For this reason, EDA is one of the physiological modalities most consistently associated with arousal \cite{jang2014relationship, sharma2016brief}.
+
+Blood Volume Pulse (BVP) is a pulse-related physiological signal derived from photoplethysmography \cite{li2021pulse}, from which features such as heart rate (HR), inter-beat interval (IBI), and heart rate variability (HRV) can be estimated. HRV features include, for example, SDNN, RMSSD, and pNN50 \cite{kolakowski2025comparative}. In the literature, BVP-derived features are more consistently associated with arousal than with valence \cite{park2022photoplethysmogram, jang2014relationship, shu2018review}.
+
+Skin temperature (SKT) is a peripheral physiological measure influenced by blood flow in the skin and autonomic nervous system activity. In emotion research, it is treated mainly as an indirect marker of autonomic arousal \cite{salazar2015mental}. 
+
+
+\section{Sequential Association Rule Mining}
+Sequential rule mining is a specialized data mining framework aimed at discovering temporal associations between events in sequence databases. \cite{fournier2011rulegrowth,fournier2014erminer} Unlike standard association rule mining (e.g., Apriori \cite{huang2000fast}), which identifies co-occurring items regardless of order, sequential rule mining extracts patterns of the form $X \rightarrow Y$, implying that the antecedent event $X$ temporally precedes the consequent event $Y$. Sequential pattern mining algorithms, such as GSP (Generalized Sequential Pattern) \cite{srikant1996mining} or PrefixSpan \cite{han2001prefixspan}, focus on discovering frequent subsequences and are often used as baselines or building blocks for rule extraction.\par
+
+
+\textit{Support} quantifies the prevalence or frequency of a rule across the entire dataset. It is defined as the proportion of sequences in $S$ where the event $X$ is followed by the event $Y$:
+\begin{equation}
+Support(X \rightarrow Y) = \frac{|\{s \in S \mid X \mbox{ precedes } Y \mbox{ in } s\}|}{|S|}
+\end{equation}
+
+\textit{Confidence} measures the directional reliability of the rule, defined as the conditional probability that $Y$ will follow $X$, given that $X$ has already occurred:
+\begin{equation}
+Confidence(X \rightarrow Y) = \frac{Support(X \rightarrow Y)}{Support(X)}
+\end{equation}
+
+In the context of physiological emotion recognition, defining strict bounds for these metrics alongside explicit temporal gaps is crucial to ensure that physiological reactions are not arbitrarily linked to temporally distant emotion states.
+
+
+\subsection{Selection of the ARMADA Algorithm}
+
+Selecting an appropriate data mining algorithm for this study required matching the specific nature of our dataset with the algorithm's technical capabilities. Specifically, the chosen method had to support multiple data channels simultaneously, integrate both categorical variables (e.g., participant sex) and continuous numerical values (e.g., EDA signals), and, most importantly, capture strict time consequences between physiological events and emotional responses.
+
+
+\n\n
+
+Although some temporal rule-mining approaches can operate without an explicit discretization step \cite{zhao2021tsarm}, this is not problematic in our setting, as ARMADA is designed for discretized interval-based events \cite{winarko2007armada}. This representation is also consistent with the nature of the analyzed features, which are subject-specific and normalized before rule extraction, making their transformation into discrete states both natural and interpretable.
+
+Moreover, ARMADA is able to represent several types of temporal relationships between interval-based events, including \textit{before}, \textit{meets}, \textit{overlaps}, \textit{is-finished-by}, \textit{contains}, \textit{equals}, and \textit{starts} \cite{winarko2007armada}. Thus, the relation between two events is not limited to a simple ordering such as \(A\) before \(B\), but can also capture more specific temporal configurations between intervals. This is useful in physiological emotion recognition, where the association between a physiological response and an emotional state may depend not only on event order, but also on the exact temporal relation between them. In addition, the \texttt{MAXGAP} parameter makes it possible to constrain the maximum allowable delay between related events, focusing the rule discovery process on temporally local dependencies \cite{winarko2007armada}.
+
+\subsection{Abstract}
+The abstract appears immediately after the authors’ details, indented \mj{0.64}{cm} from the left
+and right margins. The word “Abstract” should appear in 11-point bold type, centred above
+the text of the abstract. The abstract text should be in 10-point font.
+
+\subsection{Headings and Sections}
+Only the first two levels of section headings should be numbered. First-level headings need
+to be in 12-point bold type. Second-level headings should be in 11-point bold type. Third-level headings should be in 11-point bold italic. All headings should have 6-point paragraph spacing before and after.\par
+
+The first paragraph immediately after a heading should not be indented. All subsequent paragraphs should be indented 0.6cm.\par
+
+References to sections (as well as to figures, tables, etc.), should be capitalised, as in
+“As previously mentioned in Section 4.2, it was found that \,\ldots”.
+
+\subsection{Acknowledgements}
+An acknowledgments section may be added after the body text of the contribution. This section should not be numbered. Authors can employ this section to acknowledge assistance obtained from their colleagues and co-workers, financial support, permission to publish, etc. For the purposes of the initial submission, please do not provide any information in this section that might in any way compromise the independence of the anonymous peer-review process.
+
+\subsection{Appendices}
+If needed, authors may include appendices which follow the reference list. Each appendix should be lettered, for instance “Appendix A”, “Appendix B”, etc. If including long appendices, it may be better to include a permanent URL link to the document, e.g. a questionnaire instrument. Do not provide any URL in the initial submission that might provide information about the domain name of the authors’ institutional affiliations.
+
+\subsection{Figures and Tables}
+Please ensure that all illustrations are clear and legible. Figures and tables should be inserted in appropriate places throughout the body text. Please do not group them together at the beginning or at the bottom of the paper. Figures and tables need to be numbered sequentially. In contrast to the caption belonging to a figure, which should always appear under the illustration, the caption of a table should always be positioned above the illustration. Caption text should be in 9-point. Text in tables and figures must be clearly legible, no less than 8-point and no more than 9-point.
+
+\begin{table}[!h]
+\small
+\centering
+\caption{Table captions should always be positioned above the illustration.}
+\begin{tabular}{|c|c|c|}
+\hline
+&\textbf{Column 1}&\textbf{Column 2}\\
+\hline
+\textbf{Row A}&&\\
+\hline
+\textbf{Row B}&&\\
+\hline
+\textbf{Row C}&&\\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[!h]
+\centering
+\includegraphics[width=.25\linewidth]{isd.png}
+\caption{Captions belonging to a figure should always appear under the illustration.}
+\end{figure}
+
+Short captions should be centred between the margins while long captions, covering more
+than one line, should be justified. If captions do not constitute a full sentence, they should
+not have a period at the end. Leave whitespace of about \mj{0.6}{cm} around the area covered by
+the figure/table and caption. Captions, labels, and other text in illustrations need to be in 9-
+point type.
+
+\subsection{Headers and Footers}
+Headers and footers must be in 9-point text. All information in headers should be in \textsc{Small Caps}, respecting capital first letters. The first page header should include the long name of the conference (left justified).\par
+
+On the even pages, the header should consist of authors’ names in the upper left corner and the short title of the paper in the upper right corner. If the paper title is too long to fit in the header, please abbreviate it and if necessary add an ellipsis (\ldots) at the end. On the odd pages, starting with page 3, the header should be the short name of the conference, aligned right. Please do not add any page numbers in the paper. When the conference proceedings are complete, they will be added in the centre of the footer.
+
+\subsection{Footnotes}
+Avoid footnotes unless absolutely necessary. For referring to a footnote, superscript numerals should be used. It can be placed either directly after the word to be discussed or -- if it is related to a phrase or a sentence -- following the punctuation mark (comma, semicolon, or period). Footnotes need to be numbered sequentially and appear at the bottom of the page\footnote{A footnote should appear like this. Please ensure that your footnotes are complete, fully punctuated sentences.}. Do not use a footnote separator. Please note that footnotes should not appear in the abstract. Footnotes should be in 8-point text.
+
+\subsection{Equations and Program Code}
+Formulae are centred and numbered consecutively. The formulae numbers should be enclosed in parentheses to the right. An extra line should be placed above and below the
+displayed expression; for example:
+
+\begin{equation}
+%\int\limits_{-\infty}^{+\infty}{e^{-x^2}\,\mathrm{d}x}=\sqrt{\pi}
+x+y=z
+\end{equation}%\vspace*{\parskip}
+
+Program code snippets should be set in typewriter font as follows:
+
+\footnotesize
+\begin{verbatim}
+      function checkDateFormat($date)
+      {
+        //match the format of the date
+        if (preg_match ("/^([0-9]{4})-([0-9]{2})-([0-9]{2})$/", $date, $parts))
+        {
+          //check whether the date is valid or not
+          if(checkDate($parts[2],$parts[3],$parts[1]))
+            return true;
+          else
+            return false;
+        }
+        else
+          return false;
+      }
+\end{verbatim}
+\normalsize
+
+\subsection{Length of Contributions}
+Full papers must not exceed 12 pages, including references and appendices. Short papers must not exceed 8 pages, including references and appendices. Posters must not exceed 4 pages including references.
+
+\subsection{In-line Citations and Reference List}
+The reference section should appear at the end of the paper. References must be ordered alphabetically. Please make sure that all references are correctly listed. Only include references that are connected with the work presented in your paper. Write all references using the Latin alphabet.\par
+
+For citations in the text, use consecutive numbers placed in square brackets. The numbers in the reference section need to be without square brackets.\par
+
+An ISD referencing style that can be installed in popular reference management
+software and used in reference and bibliography formatting can be found on the ISD web
+site.
+
+%\printbibliography
+
+\bibliographystyle{splncs03}
+\bibliography{references}
+
+\end{document}
