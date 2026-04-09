@@ -64,3 +64,11 @@ csv_analysis_*.txt
 /second part/source/experiments/state_distribution/results
 /second part/source/experiments/emotion_labels/results
 /second part/source/latex_paper/ISD-2026-Instructions-for-authors-LaTeX
+*.fdb_latexmk
+*.blg
+*.fls
+*.gz
+*.fdb_latexmk
+*.fdb_latexmk
+*.blg
+*.aux

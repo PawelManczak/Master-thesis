@@ -42,35 +42,54 @@
 
 \title{Using the ARMADA Algorithm to Analyze Physiological Marker Patterns in Presumed Emotional States}
 
-\author[Author et al.]{Paweł Mańczak}
+\author[Author et al.]{Paweł Mańczak, Teresa Zawdadzka}
 
-\email{s188756@student.pg.edu.pl}
+\email{pawelmanczak14@gmail.com, teresa.zawadzka@pg.edu.pl}
 
-\institution{Gdańsk University of Technology}
+\institution{Gdańsk University of Technology, Gdańsk University of Technology}
 
-\city{Gdańsk}
+\city{Gdańsk, Gdańsk}
 
-\country{Poland}
+\country{Poland, Poland}
+
+
 
 \maketitle
 
 \begin{abstract}
-This paper presents a methodology for cross-dataset physiological rule mining to identify universal and transferable emotion-related patterns. Leveraging the EMBOA and K-emoCon datasets, we standardize diverse external and self-reported annotations into a unified multi-resolution window framework. The ARMADA algorithm is utilized to extract insightful physiological rules from cardiovascular and electrodermal signals. We conduct extensive comparative analyses, including leave-one-out and gender-based evaluations, to assess pattern stability across different experimental setups. Our findings aim to enhance the generalizability of physiological emotion recognition systems.\par\vspace*{2mm}
+Affective computing has emerged as a pivotal field in bridging the gap between human emotional intelligence and machine responsiveness, focusing on the computational modeling and automatic recognition of human emotions. This study aims to investigate the feasibility of detecting sequential patterns of physiological transitions during presumed emotional episodes. To achieve this, the ARMADA algorithm is utilized to analyze datasets characterized by continuous annotations and synchronized cardiovascular and electrodermal features. Our findings include [to be completed based on experimental results]. [Final concluding sentence regarding the impact of the findings to be added here].\par\vspace*{2mm}
 \textbf{Keywords:} Physiological Rule Mining, Emotion Recognition, ARMADA Algorithm, Affective Computing, Cross-Dataset Analysis
 \end{abstract}
 
 
 \section{Introduction}
-Emotion recognition through physiological signals has become a focal point in Affective Computing \cite{picard1997affective}, offering the potential for objective and continuous assessment of human emotional states. Signals such as electrodermal activity (EDA) and cardiovascular metrics (e.g., heart rate, blood volume pulse) have shown significant correlations with emotional arousal and valence. However, a major challenge in the field remains the generalizability of predictive models and identified physiological patterns. Many studies are constrained to single, highly controlled laboratory datasets, raising questions about whether the discovered physiological-emotional mappings are universal or merely artifacts of specific experimental setups and annotation methodologies \cite{schuller2011cross}.\par
+Emotion recognition plays a crucial role in Affective Computing, offering the potential for continuous assessment of human emotional states through physiological signals \cite{sharma2019dataset}. While numerous scientific works have successfully extracted temporal and sequential rules to model emotions, these efforts have predominantly focused on text data, such as social media posts and blogs \cite{skenduli2021mining, wen2014emotion, giuntini2021tracing}, or video data \cite{porhet2017mining}.\par
 
-Furthermore, emotion datasets often employ heterogeneous paradigms for labeling. For instance, the K-emoCon dataset \cite{park2020kemocon} incorporates self-reported psychological states and external annotations, whereas the EMBOA dataset \cite{emboa2024} utilizes external behavioral annotations. This discrepancy in labeling frameworks complicates cross-dataset comparison and limits the development of unified emotion recognition models. To address this, it is crucial to establish standardized methodologies for processing multimodal data and extracting robust patterns that transcend individual dataset constraints.\par
+Surprisingly, the application of sequential rule mining to physiological signals remains virtually unexplored. Even though human physiological responses naturally unfold over time, very few studies actually use sequential rules to analyze them. Instead, modern research frequently relies on machine learning and deep learning architectures to process physiological time-series data, including Support Vector Machines (SVMs), Convolutional Neural Networks (CNNs), and Recurrent Neural Networks such as LSTMs. Although these models often achieve strong classification performance, their predictions are typically difficult to interpret in mechanistic terms, making it challenging to explicitly explain how temporally evolving physiological changes relate to the emergence of a particular emotional state \cite{bota2019review, shu2018review}.\par
 
-In this paper, we propose a cross-dataset physiological rule mining framework designed to discover universal and transferable emotional patterns. By standardizing the external and self-reported annotations from both EMBOA and K-emoCon datasets into a unified multi-resolution time window format, we establish a common ground for comparative analysis. We utilize the ARMADA algorithm \cite{armada2025} to mine association rules between physiological responses and emotional states. The stability and robustness of these rules are then evaluated across different experimental backgrounds, utilizing leave-one-out and gender-based analyses.\par
+\section{Motivations and Research Questions}
+To address this gap, this paper introduces a sequential rule mining approach to physiological data, shifting the focus from opaque "black-box" predictions to interpretable temporal rules. Specifically, this study aims to answer the following research questions:
 
-The remainder of this paper is organized as follows: Section 2 reviews related work in physiological emotion recognition and rule mining. Section 3 details our methodology, including data standardization and the ARMADA analytical approach. Section 4 presents the experimental setup, while Section 5 discusses the results of our comparative analysis. Finally, Section 6 concludes the paper and outlines directions for future research.
+\begin{enumerate}
+    \item Are there universal temporal patterns in which changes in physiological signals precede changes in emotional states (arousal, valence)?
+    \item Do temporal rules work bidirectionally (physiology $\rightarrow$ emotions and emotions $\rightarrow$ physiology), or does one direction dominate?
+    \item Do the extracted temporal patterns differ between genders?
+    \item Does age affect the discovered physiological rules?
+    \item Which temporal rules extracted by the ARMADA algorithm remain stable regardless of the experimental context?
+    \item Do multimodal rules (combining EDA, HRV, and HR simultaneously) exhibit higher confidence than unimodal rules?
+\end{enumerate}
 
 
-\section{Datasets and Modalities}
+\section{Related Work}
+
+\subsection{Emotion Recognition and Physiological Signals}
+The field of Affective Computing has long recognized the potential of physiological signals for emotion assessment. Unlike facial expressions or voice, physiological responses such as Electrodermal Activity (EDA), Photoplethysmography (PPG), and Heart Rate Variability (HRV) are largely controlled by the autonomic nervous system and reflect genuine emotional states without conscious distortion \cite{shu2018review}. In recent years, an extensive body of literature has adopted machine learning and deep learning techniques to process these complex time-series signals \cite{bota2019review}. Studies frequently rely on sophisticated architectures capable of high-accuracy classification. However, while these predictive models demonstrate impressive performance, they predominantly function as black-box mechanisms, rarely offering transparent insights into how temporal interactions among distinct physiological events shape human emotions over time.
+
+\subsection{Sequential Rule Mining in Affective Computing}
+While sequential pattern mining has been successfully applied to discover temporal relationships within data, its utilization in emotion recognition has been mostly restricted to other modalities. A significant amount of research has focused on extracting sequential emotion-aware rules from text data, particularly social media content and micro-blogs \cite{skenduli2021mining, wen2014emotion}. For instance, tracing the temporal emotional roadmap of users through sequences of online posts has proven valuable in depressive tendency detection \cite{giuntini2021tracing}. Similarly, sequential pattern mining has been utilized to analyze multimodal combinations of verbal and facial clues in video data, unearthing temporal patterns during interpersonal interactions \cite{porhet2017mining}. Despite these advancements across text and video modalities, physiological data remains notably excluded from sequential rule-mining approaches, leaving an unaddressed gap regarding the explicit, universally interpretable temporal rules defining human physiological reactions.
+
+
+\section{Methodology}
 
 \subsection{Datasets}
 Although a broader range of affective datasets exists \cite{ometov2025stress}, in this work we focused on those that combine multimodal physiological recordings with relatively continuous or densely sampled emotion annotations and for which data access could be obtained.\par
@@ -141,7 +160,7 @@ Blood Volume Pulse (BVP) is a pulse-related physiological signal derived from ph
 Skin temperature (SKT) is a peripheral physiological measure influenced by blood flow in the skin and autonomic nervous system activity. In emotion research, it is treated mainly as an indirect marker of autonomic arousal \cite{salazar2015mental}. 
 
 
-\section{Sequential Association Rule Mining}
+\subsection{Sequential Association Rule Mining}
 Sequential rule mining is a specialized data mining framework aimed at discovering temporal associations between events in sequence databases. \cite{fournier2011rulegrowth,fournier2014erminer} Unlike standard association rule mining (e.g., Apriori \cite{huang2000fast}), which identifies co-occurring items regardless of order, sequential rule mining extracts patterns of the form $X \rightarrow Y$, implying that the antecedent event $X$ temporally precedes the consequent event $Y$. Sequential pattern mining algorithms, such as GSP (Generalized Sequential Pattern) \cite{srikant1996mining} or PrefixSpan \cite{han2001prefixspan}, focus on discovering frequent subsequences and are often used as baselines or building blocks for rule extraction.\par
 
 
@@ -158,21 +177,125 @@ Confidence(X \rightarrow Y) = \frac{Support(X \rightarrow Y)}{Support(X)}
 In the context of physiological emotion recognition, defining strict bounds for these metrics alongside explicit temporal gaps is crucial to ensure that physiological reactions are not arbitrarily linked to temporally distant emotion states.
 
 
-\subsection{Selection of the ARMADA Algorithm}
+\subsubsection{Selection of the ARMADA Algorithm}
 
 Selecting an appropriate data mining algorithm for this study required matching the specific nature of our dataset with the algorithm's technical capabilities. Specifically, the chosen method had to support multiple data channels simultaneously, integrate both categorical variables (e.g., participant sex) and continuous numerical values (e.g., EDA signals), and, most importantly, capture strict time consequences between physiological events and emotional responses.
 
-
-\n\n
 
 Although some temporal rule-mining approaches can operate without an explicit discretization step \cite{zhao2021tsarm}, this is not problematic in our setting, as ARMADA is designed for discretized interval-based events \cite{winarko2007armada}. This representation is also consistent with the nature of the analyzed features, which are subject-specific and normalized before rule extraction, making their transformation into discrete states both natural and interpretable.
 
 Moreover, ARMADA is able to represent several types of temporal relationships between interval-based events, including \textit{before}, \textit{meets}, \textit{overlaps}, \textit{is-finished-by}, \textit{contains}, \textit{equals}, and \textit{starts} \cite{winarko2007armada}. Thus, the relation between two events is not limited to a simple ordering such as \(A\) before \(B\), but can also capture more specific temporal configurations between intervals. This is useful in physiological emotion recognition, where the association between a physiological response and an emotional state may depend not only on event order, but also on the exact temporal relation between them. In addition, the \texttt{MAXGAP} parameter makes it possible to constrain the maximum allowable delay between related events, focusing the rule discovery process on temporally local dependencies \cite{winarko2007armada}.
 
-\subsection{Abstract}
-The abstract appears immediately after the authors’ details, indented \mj{0.64}{cm} from the left
-and right margins. The word “Abstract” should appear in 11-point bold type, centred above
-the text of the abstract. The abstract text should be in 10-point font.
+\section{Experimental Design}
+The overall experimental workflow consists of five primary stages designed to extract, process, and evaluate temporal rules relating physiological signals to emotional states. The detailed pipeline is illustrated below:
+
+\begin{figure}[!h]
+\centering
+\includegraphics[width=\textwidth]{diagram.jpg}
+\caption{The proposed experimental pipeline for extracting and verifying temporal physiological rules.}
+\label{fig:pipeline}
+\end{figure}
+
+As outlined in Figure~\ref{fig:pipeline}, the workflow involves the following steps:
+\begin{enumerate}
+    \item \textbf{Data Sources:} The pipeline initially ingests multimodal physiological data from four diverse datasets: CASE, CEAP-360VR, K-emoCon, and EmoWorker.
+    \item \textbf{Global Processing and Local Aggregation:} The raw signals undergo global filtering, which includes peak detection and EDA decomposition, to derive clean preprocessed signals. These signals are then divided into multi-resolution sliding windows: 5-second fast windows for rapidly changing variables (EDA, HR, ACC) and 30-second slow windows for more stable measures (HRV, SKT). Finally, all time vectors are synchronized and the numerical data is discretized into cross-dataset thresholds (Low, Medium, High).
+    \item \textbf{Temporal Pattern Mining:} The categorized threshold data is fed into the ARMADA algorithm. Driven by specific support, confidence, and maximum gap parameters, the algorithm uncovers robust temporal relationships (such as \textit{before}, \textit{equals}, and \textit{meets}).
+    \item \textbf{Semantic Filtration:} To ensure relevance to the study's objective, raw temporal rules are processed via cross-modal filters. Any rules that identify dependencies exclusively within a single modality (for example, a physiological change preceding solely another physiological change) are discarded, preserving only those significant rules that securely link an emotional state with corresponding physiological markers.
+    \item \textbf{Verification Strategies:} The remaining set of significant rules undergoes a three-pronged multifaceted verification phase: Strict Universal Rules analysis to find patterns holding across all four datasets, Leave-One-Out Analysis to spot major cross-dataset variations, and Gender-Specific checks to uncover unique behavioral variants between men and women.
+\end{enumerate}
+
+\section{Execution of Experiments}
+The ARMADA algorithm was executed independently on each of the four datasets (CASE, K-emoCon, CEAP, EmoWorker\_v2). Two separate experimental runs were performed with different parameter settings to address different aspects of the research questions.
+
+\subsection{Initial Cross-Dataset Comparison}
+In the first run, the algorithm was configured with a minimum support threshold of 30\% ($minsup = 0.3$), minimum confidence of 50\% ($minconf = 0.5$), a maximum temporal gap of 5 seconds ($maxgap = 5$), and a maximum pattern size of 3. These relatively strict parameters were chosen to identify only frequently occurring and highly confident rules within each dataset individually.
+
+\subsection{Universal Rules Identification}
+In the second run, the parameters were relaxed to $minsup = 0.1$, $minconf = 0.1$, $maxgap = 20$ seconds, and $max\_pattern\_size = 2$. The lower thresholds were intentionally set to allow weaker but potentially universal patterns to surface across all four datasets. After mining, a strict intersection was computed: only rules present in every dataset simultaneously were classified as universal.
+
+\subsection{Semantic Filtering}
+In both runs, the following semantic filters were applied to ensure that rules carry cross-modal meaning relevant to the research question:
+\begin{itemize}
+    \item Rules containing only BVP/HRV/HR-related states were rejected.
+    \item Rules containing only EDA-related states were rejected.
+    \item Rules linking exclusively physiological modalities (e.g., EDA with BVP) without any emotional dimension (arousal or valence) were rejected.
+    \item Rules involving only a single feature type were rejected.
+\end{itemize}
+These filters ensured that the remaining rules always connect at least one physiological modality to at least one emotional dimension.
+
+\subsection{Dataset-Level Statistics}
+Table~\ref{tab:dataset_stats} summarizes the number of participants and rules extracted per dataset in each experimental run.
+
+\begin{table}[!h]
+\small
+\centering
+\caption{ARMADA output statistics per dataset for both experimental runs.}
+\label{tab:dataset_stats}
+\begin{tabular}{|l|c|c|c|c|c|}
+\hline
+\textbf{Dataset} & \textbf{Participants} & \textbf{Patterns (Run 1)} & \textbf{Rules (Run 1)} & \textbf{Rules Raw (Run 2)} & \textbf{Rules Filtered (Run 2)} \\
+\hline
+CASE & 30 & 3469 & 2407 & 1617 & 371 \\
+\hline
+K-emoCon & 28 & 2948 & 2366 & 1666 & 432 \\
+\hline
+CEAP & 32 & 3028 & 2028 & 1776 & 465 \\
+\hline
+EmoWorker\_v2 & 31 & 2706 & 1851 & 1345 & 374 \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\section{Results of Experiments}
+
+\subsection{RQ1: Universal Temporal Patterns Linking Physiology and Emotion}
+
+This section addresses the first research question: \textit{Are there universal temporal patterns in which changes in physiological signals precede changes in emotional states (arousal, valence)?}
+
+\subsubsection{Cross-Dataset Rule Intersection}
+After applying semantic filters, 16 universal rules were identified as present in all four datasets. The top rules, sorted by average confidence, are presented in Table~\ref{tab:universal_rules}.
+
+\begin{table}[!h]
+\small
+\centering
+\caption{Top universal rules found across all four datasets (sorted by average confidence).}
+\label{tab:universal_rules}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{|p{7.4cm}|c|c|c|c|c|c|}
+\hline
+\textbf{Rule} & \textbf{Avg Conf} & \textbf{Avg Sup} & \textbf{CASE} & \textbf{K-emoCon} & \textbf{CEAP} & \textbf{EmoWorker} \\
+\hline
+valence\_low $\Rightarrow$ before eda\_peaks\_high & 0.721 & 0.632 & 0.30 & 0.86 & 0.97 & 0.77 \\
+\hline
+valence\_low $\Rightarrow$ before eda\_scr\_auc\_medium & 0.718 & 0.628 & 0.74 & 0.81 & 0.66 & 0.67 \\
+\hline
+hrv\_cvnn\_high $\Rightarrow$ meets arousal\_medium & 0.708 & 0.568 & 0.80 & 0.68 & 0.58 & 0.77 \\
+\hline
+hrv\_cvsd\_high $\Rightarrow$ meets arousal\_medium & 0.708 & 0.564 & 0.76 & 0.62 & 0.65 & 0.81 \\
+\hline
+hrv\_pnn50\_high $\Rightarrow$ meets arousal\_medium & 0.702 & 0.530 & 0.86 & 0.54 & 0.62 & 0.79 \\
+\hline
+hrv\_rmssd\_high $\Rightarrow$ meets arousal\_medium & 0.691 & 0.529 & 0.70 & 0.56 & 0.75 & 0.76 \\
+\hline
+hrv\_sdnn\_high $\Rightarrow$ meets arousal\_medium & 0.682 & 0.509 & 0.80 & 0.58 & 0.58 & 0.76 \\
+\hline
+valence\_low $\Rightarrow$ before arousal\_medium & 0.623 & 0.555 & 0.56 & 0.48 & 0.79 & 0.67 \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\subsubsection{Key Findings}
+The results indicate that universal temporal patterns linking physiological signals to emotional states do exist across heterogeneous datasets. Two major categories of universal rules were identified:
+
+\textbf{HRV $\rightarrow$ Arousal rules.} The most consistent universal pattern involves elevated HRV features (high CVNN, CVSD, PNN50, RMSSD, SDNN) temporally \textit{meeting} medium arousal states. These rules appeared with average confidence between 0.68 and 0.71 across all four datasets, suggesting that periods of high parasympathetic cardiac activity reliably precede or co-occur with moderate arousal levels regardless of the experimental context.
+
+\textbf{Valence $\rightarrow$ EDA rules.} Low valence states were found to temporally \textit{precede} increases in electrodermal activity (high EDA peaks and medium SCR area under curve). These rules exhibited average confidence of 0.72, indicating that negative emotional valence acts as a precursor to heightened sympathetic arousal as reflected in skin conductance. The bidirectional nature of this pattern (emotion $\rightarrow$ physiology) is notable and will be further discussed in the context of the second research question.
+
+\section{Conclusion}
+% Puste miejsce na podsumowanie i wnioski.
 
 \subsection{Headings and Sections}
 Only the first two levels of section headings should be numbered. First-level headings need
