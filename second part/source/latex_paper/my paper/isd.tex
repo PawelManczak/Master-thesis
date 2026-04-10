@@ -325,9 +325,9 @@ To enable dimensional vs. discrete comparisons (Section~\ref{sec:experimentsResu
 \subsection{Temporal Alignment of Ground Truth Annotations}
 To enable strict association rule mining, annotation streams recorded at varied frequencies or by multiple observers were aggregated into a singular ground truth label per temporal window.
 
-For \textbf{self-reported datasets} (e.g., CASE, K-emoCon), high-frequency or asynchronous ratings within a physiological window were simply averaged (linear mean) to yield one synchronized dimensional label. 
+For self-reported datasets (e.g., CASE, K-emoCon), high-frequency or asynchronous ratings within a physiological window were simply averaged (linear mean) to yield one synchronized dimensional label. 
 
-For \textbf{externally annotated datasets} featuring multiple observers, independent ratings were fused into a consensus sequence before window aggregation. For K-emoCon (External), we used the dataset's native \textit{aggregated\_external\_annotations}, where up to five continuous rating streams were aggregated via majority voting (see Code Availability). In EMBOA, the native percentage agreement across multiple BORIS raters served as the proportional weight mapping categorical emotions onto Russell’s dimensional space. This ensured deterministic emotion tracking across all cohorts.
+For externally annotated datasets featuring multiple observers, independent ratings were fused into a consensus sequence before window aggregation. For K-emoCon (External), we used the dataset's native \textit{aggregated\_external\_annotations}, where up to five continuous rating streams were aggregated via majority voting (see Code Availability). In EMBOA, the native percentage agreement across multiple BORIS raters served as the proportional weight mapping categorical emotions onto Russell’s dimensional space. This ensured deterministic emotion tracking across all cohorts.
 \subsection{Handling Missing Values}
 Corrupted intervals and missing values were inherently filtered or marked natively by the original dataset providers, allowing our methodology to bypass artificial interpolation entirely.
 \subsection{Age Cohort Unification}
@@ -336,62 +336,28 @@ To support demographic pattern extraction (RQ2.1) without overly fragmenting the
 \section{Experimental Design}
 \label{sec:experimentalDesign}
 
-RQ1. 
+\subsection{Experiment 1: Technical Framework and Feasibility (RQ1)}
 
-Eksperyment 1
+To validate ARMADA's applicability, input sequences were structured as participant-level multivariate time series combining cardiovascular and EDA signals with synchronized emotional states. We strictly isolated self-reported from external annotations to prevent structural overlap. To evaluate generic cross-dataset feasibility independently of rigid dataset-specific constraints, a universal minimum support parameter of 30\% (\textit{Minsup = 0.3}) was strictly applied across this foundational phase.
 
-Wejście: ze wszystkich datasetów, dla każdego datasetu per użytkownik, czynność multivariate time series (wszystkie features z C i EDA (1), emocja (jak opisana - v, arousal znormalizowane (2), Emocja pochodzi z adnotacji - ). Opisać, że oddzielne szeregi czasowe dla self i external (jeżeli są)
+This setup supported three comparative iterations:
+\begin{itemize}
+    \item \textbf{Global Feasibility (RQ1):} Extraction of universal rules across all pooled datasets utilizing the uniform discrete 9-label emotional framework.
+    \item \textbf{Annotation Source (RQ1.1):} Measuring explicit pattern variations between exclusively self-reported and exclusively external sequences, mapped identically on dimensional ($V/A$) inputs.
+    \item \textbf{Emotional Model (RQ1.2):} Assessing the structural impact of utilizing dimensional ($V/A$) representations versus discrete frameworks across identical self-reported sequences.
+\end{itemize}
+\subsection{Experiment 2: Independent Dataset Pattern Discovery}
+To establish dataset-level physiological footprints, the baseline ARMADA methodology was executed independently across each distinct dataset environment using purely dimensional ($V/A$) configurations. To measure cross-compatibility, the resulting discrete sequential rule sets were evaluated using dynamic intersections—gradually escalating from discovering generic rules shared between any two datasets, up to rigid matrices tracking intersections across three, four, or five environments. Datasets possessing dual annotations (e.g., K-emoCon) were treated as independent algorithmic entities during the pairing processes.
 
-1 cała ale w dyskretnym
+\subsection{Experiment 3: Universal Intersections (RQ2)}
+Building upon the feasibility intersections, a strict universal rule analysis was executed identically across two distinct structural groupings to verify core physiological stability:
+\begin{itemize}
+    \item \textbf{Self-Reported Universality:} Intersecting the discrete temporal outputs exclusively derived from the four self-annotated datasets to identify global psychophysiological rules universally present across self-aware environments.
+    \item \textbf{External Universality:} Isolating the intersection between the two externally annotated datasets to search for patterns universally perceptible by third-party observers.
+\end{itemize}
 
-1.1. 1. tylko dla self (va)
-    2. tylko dla external (va)
-
-1.2 1. tylko dla self (dyskretny)
-        tylko dla self (dyskretny)
-
-
-W tym eksperymecie nie ustalamy dedykowanych progów dla metryk tylko schodzimy 30 procent czy dedykowany do wszystkich czy nie.
-
-Eksperyment 2
-
-Robimy to samo, ale dla każdego datasetu oddzielnie
-
-Jak będziemy analizować. K-emonCon jest traktowany 2x
-Analiza uzyskanych reguł - wszystkie 2, wszystkie 3 (jeżeli nie będzie wszędzie 0) to próbujemy 4, ewentualnie 5
-
-tylko dla av
-
-Eksperyment 3
-4 z self (wyciągamy reguły)
-2 z eksternal (wyciągamy reguły)
-
-av + dyskretny?
-
-RQ2
-
-Eksperyment 4
-
-Wejście: 
-
-
-The overall experimental workflow consists of five primary stages designed to extract, process, and evaluate temporal rules relating physiological signals to emotional states. The detailed pipeline is illustrated below:
-
-\begin{figure}[!h]
-\centering
-\includegraphics[width=\textwidth]{diagram.jpg}
-\caption{The proposed experimental pipeline for extracting and verifying temporal physiological rules.}
-\label{fig:pipeline}
-\end{figure}
-
-As outlined in Figure~\ref{fig:pipeline}, the workflow involves the following steps:
-\begin{enumerate}
-    \item \textbf{Data Sources:} The pipeline initially ingests multimodal physiological data from four diverse datasets: CASE, CEAP-360VR, K-emoCon, and EmoWorker.
-    \item \textbf{Global Processing and Local Aggregation:} The raw signals undergo global filtering, which includes peak detection and EDA decomposition, to derive clean preprocessed signals. These signals are then divided into multi-resolution sliding windows: 5-second fast windows for rapidly changing variables (EDA, HR, ACC) and 30-second slow windows for more stable measures (HRV, SKT). Finally, all time vectors are synchronized and the numerical data is discretized into cross-dataset thresholds (Low, Medium, High).
-    \item \textbf{Temporal Pattern Mining:} The categorized threshold data is fed into the ARMADA algorithm. Driven by specific support, confidence, and maximum gap parameters, the algorithm uncovers robust temporal relationships (such as \textit{before}, \textit{equals}, and \textit{meets}).
-    \item \textbf{Semantic Filtration:} To ensure relevance to the study's objective, raw temporal rules are processed via cross-modal filters. Any rules that identify dependencies exclusively within a single modality (for example, a physiological change preceding solely another physiological change) are discarded, preserving only those significant rules that securely link an emotional state with corresponding physiological markers.
-    \item \textbf{Verification Strategies:} The remaining set of significant rules undergoes a three-pronged multifaceted verification phase: Strict Universal Rules analysis to find patterns holding across all four datasets, Leave-One-Out Analysis to spot major cross-dataset variations, and Gender-Specific checks to uncover unique behavioral variants between men and women.
-\end{enumerate}
+\subsection{Experiment 4: Demographic Correlational Stability (RQ2.1 \& RQ2.2)}
+To verify cross-group correlational consistency, the fully established temporal patterns derived from universal self-reported dimensional datasets were deeply segmented utilizing the unified global demographic markers (Gender and Age groups). ARMADA was subsequently deployed to isolate specific sequential anomalies fundamentally tied to physiological demographic divergences rather than experimental noise.
 
 \section{Execution of Experiments}
 \label{sec:experimentsImplementation}
@@ -454,8 +420,19 @@ Figure~\ref{fig:heatmap} visualizes the pairwise overlap between datasets. The h
 \begin{figure}[!h]
 \centering
 \includegraphics[width=0.45\textwidth]{figures/heatmap_shared_rules.png}
-\caption{Pairwise shared rules between all six datasets. Diagonal cells show the total number of filtered rules per dataset; off-diagonal cells show the number of rules shared between each pair.}
+\hfill
+\includegraphics[width=0.45\textwidth]{figures/heatmap_pairs_generalization.png}
+\caption{Left: Pairwise shared rules between all six datasets. Diagonal cells show total filtered rules per dataset; off-diagonal cells show rules shared between each pair. Right: Generalization of pairwise intersections to third datasets. Grey cells mark self-referencing pair members; colored cells show how many shared rules from each pair persist in an independent third dataset.}
 \label{fig:heatmap}
+\end{figure}
+
+\begin{figure}[!h]
+\centering
+\includegraphics[width=0.45\textwidth]{figures/heatmap_triplets_generalization.png}
+\hfill
+\includegraphics[width=0.45\textwidth]{figures/heatmap_quintuplets_generalization.png}
+\caption{Left: Generalization of triplet intersections to a fourth dataset. Each row represents a unique combination of three datasets; colored cells show how many triplet-shared rules persist in an independent fourth dataset. Right: Leave-one-out quintuplet analysis. Each row excludes one dataset from a five-way intersection; the single non-grey cell shows how many rules generalize to the excluded sixth dataset (all zeros at 50\% support).}
+\label{fig:heatmap_higher}
 \end{figure}
 
 \subsection{RQ 1.1: Influence of Annotation Source}
@@ -547,6 +524,17 @@ EMBOA & Ext & 80 & 36 & 0.45 \\
 \end{table}
 
 At the standard support threshold (50\%), the discrete model produced fewer cross-modal rules in every dataset (22--51\% of the dimensional count). Neither model yielded any rules shared across all six datasets simultaneously. Pairwise Jaccard similarity was consistently higher for the dimensional model (mean $J = 0.090$) than for the discrete model (mean $J = 0.040$), indicating that the dimensional representation produces more consistent patterns across heterogeneous datasets. The discrete model's lower cross-dataset agreement reflects the inherent sparsity of a nine-category mapping, where peripheral emotions generate dataset-specific rather than universal rules.
+
+\begin{figure}[!h]
+\centering
+\includegraphics[width=0.45\textwidth]{figures/heatmap_discrete_pairwise.png}
+\hfill
+\includegraphics[width=0.45\textwidth]{figures/heatmap_discrete_pairs_generalization.png}
+\caption{Discrete model. Left: Pairwise shared rules between all six datasets. Right: Generalization of pairwise intersections to third datasets.}
+\label{fig:heatmap_discrete}
+\end{figure}
+
+No triplet or higher-order intersections produced any shared rules under the discrete model at 50\% support, confirming that the nine-category framework does not generalize beyond pairwise dataset agreements.
 
 \subsection{RQ2: Pattern Discovery and Physiological Correlation}
 \label{sec:results_rq2}
