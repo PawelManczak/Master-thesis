@@ -308,7 +308,10 @@ Blood Volume Pulse (BVP) is a pulse-related physiological signal derived from ph
 
 Skin temperature (SKT) is a peripheral physiological measure influenced by blood flow in the skin and autonomic nervous system activity. In emotion research, it is treated mainly as an indirect marker of autonomic arousal \cite{salazar2015mental}. 
 
-\section{Preprocressing}
+\section{Preprocessing}
+
+\subsection{Sliding Window Mechanism}
+To synchronize disparate sampling rates across multiple datasets, continuous physiological signals and ground truth annotations were segmented using a static sliding window mechanism. We applied a multi-resolution methodology tailored to modality reactivity parameters: dynamic signals such as electrodermal activity (EDA), heart rate, and accelerometer data were extracted utilizing short 5-second sliding windows \cite{boucsein2012electrodermal}. Conversely, parameters inherently reliant on longer macroscopic measurement phases, specifically heart rate variability (HRV) and skin temperature, were captured via independent 30-second windows \cite{rossi2020error}.
 
 \subsection{Discretization of Physiological Features}
 Because ARMADA requires symbolic input, continuous physiological signals were discretized into three states: Low (L), Medium (M), and High (H). To reduce subject-specific bias, since physiological baselines and response ranges can differ markedly across individuals \cite{gutierrez2024personalized, braithwaite2013guide}, we first applied participant-wise min-max normalization and then defined L/M/H using global terciles computed from the pooled normalized data.
@@ -325,9 +328,10 @@ To enable strict association rule mining, annotation streams recorded at varied 
 For \textbf{self-reported datasets} (e.g., CASE, K-emoCon), high-frequency or asynchronous ratings within a physiological window were simply averaged (linear mean) to yield one synchronized dimensional label. 
 
 For \textbf{externally annotated datasets} featuring multiple observers, independent ratings were fused into a consensus sequence before window aggregation. For K-emoCon (External), we used the dataset's native \textit{aggregated\_external\_annotations}, where up to five continuous rating streams were aggregated via majority voting (see Code Availability). In EMBOA, the native percentage agreement across multiple BORIS raters served as the proportional weight mapping categorical emotions onto Russell’s dimensional space. This ensured deterministic emotion tracking across all cohorts.
-5. Jakiś komentarz dla wartości brakujących
-
-6. Przygotowanie jednolitych przedziałów wiekowych dla datasetów
+\subsection{Handling Missing Values}
+Corrupted intervals and missing values were inherently filtered or marked natively by the original dataset providers, allowing our methodology to bypass artificial interpolation entirely.
+\subsection{Age Cohort Unification}
+To support demographic pattern extraction (RQ2.1) without overly fragmenting the subset populations, participant ages from all 121 analyzed subjects were unified into a balanced binary threshold rather than multiple narrow buckets. Participants were strictly divided into \textit{Young} (age $\leq 25$; $N=60$) versus \textit{Older} (age $> 25$; $N=61$) groupings.
 
 \section{Experimental Design}
 \label{sec:experimentalDesign}

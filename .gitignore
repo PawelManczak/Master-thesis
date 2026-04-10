@@ -72,3 +72,5 @@ csv_analysis_*.txt
 *.fdb_latexmk
 *.blg
 *.aux
+*.gz
+*.gz
