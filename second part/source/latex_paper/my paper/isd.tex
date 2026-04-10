@@ -3,6 +3,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{graphicx}
+\usepackage{multirow}
 %\graphicspath{{/home/damir/Pictures/}} %if pictures not in current directory of tex file
 
 \begin{comment}
@@ -596,6 +597,29 @@ To evaluate the influence of demographic characteristics (RQ 2.1) and overall cr
 
 While a foundational psychophysiological baseline exists (the 9 global rules), fine-grained temporal responses remain substantially demographic-specific. Evaluating data exclusively within demographic subgroups dramatically increases the number of consistent temporal rules (from 9 globally to 114--126 per gender group and 109--122 per age group). The intersection between subgroups (45 shared gender rules, 36 shared age rules) is considerably larger than the global baseline, indicating that homogeneous populations enable the discovery of more stable patterns. Nevertheless, the majority of subgroup-specific rules (69 unique to males, 81 unique to females) remain exclusive to their respective demographic, structurally demonstrating the influence of individual differences on physiological-emotional temporal dynamics.
 
+\subsection{RQ 2.3: Multimodality Advantage}
+\label{sec:results_rq23}
+To investigate whether incorporating multiple physiological modalities into a single pattern improves rule performance, the rule mining process was evaluated across varying sequence lengths (pattern sizes: 2, 3, and 4) using a 30\% minimum support threshold on the self-annotated datasets.
+
+\begin{table}[!ht]
+\centering
+\small
+\caption{Multimodality advantage ($min\_sup=0.3$). Volume and average confidence of multi-item temporal rules across self-annotated datasets.}
+\begin{tabular}{|l|c|c|c|c|c|c|}
+\hline
+\multirow{2}{*}{\textbf{Dataset}} & \multicolumn{2}{c|}{\textbf{Size 2 (1$\rightarrow$1)}} & \multicolumn{2}{c|}{\textbf{Size 3 (2$\rightarrow$1)}} & \multicolumn{2}{c|}{\textbf{Size 4 (3$\rightarrow$1)}} \\
+\cline{2-7}
+ & \textbf{N} & \textbf{Avg Cnf} & \textbf{N} & \textbf{Avg Cnf} & \textbf{N} & \textbf{Avg Cnf} \\
+\hline
+CASE & 390 & 0.675 & 204 & 0.692 & 472 & 0.702 \\ \hline
+K-emoCon & 345 & 0.656 & 132 & 0.649 & 237 & 0.637 \\ \hline
+CEAP & 979 & 0.648 & 94 & 0.663 & 389 & 0.600 \\ \hline
+EmoWorker & 181 & 0.645 & 94 & 0.638 & 213 & 0.629 \\ \hline
+\end{tabular}
+\label{tab:multimodality}
+\end{table}
+
+Table~\ref{tab:multimodality} summarizes the relationship between pattern size and rule confidence. In highly controlled laboratory settings (CASE), increasing modality count slightly improves rule certainty (from 67.6\% to 70.2\%). However, in conversational or continuous-workload contexts (K-emoCon, EmoWorker), multimodality marginally decreases average confidence. This suggests that the advantage of complex cross-modal patterns heavily depends on the experimental signal-to-noise ratio.
 
 \section{Conclusions}
 \label{sec:conclusions}
