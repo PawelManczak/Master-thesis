@@ -48,9 +48,9 @@ SCALE_RANGES = {
 # Discretization thresholds (for 0-1 scale)
 # Based on emotion recognition methods review (Ahmad et al.)
 # SAM (Self-Assessment Manikin) 1-9 grouped as:
-#   1-3: negative/low arousal → [0.00, 0.25]
-#   4-6: neutral/moderate → (0.25, 0.75)
-#   7-9: positive/high arousal → [0.75, 1.00]
+#   1-3: negative/low arousal -> [0.00, 0.25]
+#   4-6: neutral/moderate -> (0.25, 0.75)
+#   7-9: positive/high arousal -> [0.75, 1.00]
 #
 # Interpretation for valence:
 #   low (0.00-0.25): clearly unpleasant (sadness, anger, disgust)
@@ -104,12 +104,9 @@ PHYSIO_VARIABLES = [
 ]
 
 # Variables requiring personal normalization (min-max per participant)
-# instead of terciles - according to psychophysiological recommendations (Birmingham EDA guide)
-# All EDA features require personal normalization, because conductance level
-# is highly individual (skin thickness, number of glands) - Boucsein (2012)
-PERSONAL_NORM_VARIABLES = [
-    'eda_mean', 'eda_std', 'eda_max', 'eda_peaks', 'eda_scr_mean_amp', 'eda_scr_auc'
-]
+# All physiological features are now scaled personally min-max to address baseline individual differences,
+# prior to applying global terciles across the normalized dataset.
+PERSONAL_NORM_VARIABLES = PHYSIO_VARIABLES.copy()
 
 # Mapping column names to readable state names
 VARIABLE_NAME_MAPPING = {
@@ -312,12 +309,9 @@ def compute_global_thresholds(
     labels incomparable), we compute terciles on data from ALL participants 
     of a given dataset combined.
 
-    For EDA: we still apply personal normalization (min-max) before computing
-    global terciles - because raw EDA ranges are too different between people.
-    But terciles are computed globally on normalized values.
-
-    For other physiological variables (HR, HRV, temp):
-    terciles are computed on raw values from all participants.
+    All physiological features undergo personal normalization (min-max) before computing
+    global terciles to account for individual baselines. Terciles are then computed 
+    globally on these normalized values.
 
     Returns:
         dict: {variable: {'low': (min, p33), 'medium': (p33, p67), 'high': (p67, max)}}
@@ -350,7 +344,7 @@ def compute_global_thresholds(
             continue
 
         if var in PERSONAL_NORM_VARIABLES:
-            # EDA: personal min-max normalization, then global terciles
+            # Personal min-max normalization, then global terciles
             norm_values = []
             for pid, group in combined.groupby('_participant_id'):
                 values = group[var].dropna()
@@ -374,7 +368,7 @@ def compute_global_thresholds(
                 'medium': (p33, p67),
                 'high': (p67, 1.001)
             }
-            print(f"    {var} (EDA, global after personal norm): p33={p33:.3f}, p67={p67:.3f}")
+            print(f"    {var} (global after personal norm): p33={p33:.3f}, p67={p67:.3f}")
         else:
             # Other variables: global terciles on raw values
             values = combined[var].dropna()
@@ -405,8 +399,7 @@ def compute_cross_dataset_thresholds(
     labels between datasets), we compute terciles on data from ALL participants
     across all datasets.
 
-    For EDA: personal min-max normalization, then global terciles
-    For others: global terciles on raw values
+    For all variables: personal min-max normalization, then global terciles
 
     Args:
         dataset_dirs: dict {dataset_name: path_to_processed}
@@ -453,7 +446,7 @@ def compute_cross_dataset_thresholds(
             continue
 
         if var in PERSONAL_NORM_VARIABLES:
-            # EDA: personal min-max normalization, then global terciles
+            # Personal min-max normalization, then global terciles
             norm_values = []
             for pid, group in combined.groupby('_participant_id'):
                 values = group[var].dropna()
@@ -477,7 +470,7 @@ def compute_cross_dataset_thresholds(
                 'medium': (p33, p67),
                 'high': (p67, 1.001)
             }
-            print(f"    {var} (EDA, cross-dataset): p33={p33:.3f}, p67={p67:.3f}")
+            print(f"    {var} (cross-dataset after personal norm): p33={p33:.3f}, p67={p67:.3f}")
         else:
             # Other variables: global terciles on raw values
             values = combined[var].dropna()
@@ -564,7 +557,7 @@ def process_participant_data(
             gt = global_thresholds[var]
 
             if var in PERSONAL_NORM_VARIABLES:
-                # EDA: personal min-max normalization, then global thresholds
+                # Personal min-max normalization, then global thresholds
                 if f'{var}_norm' in df.columns:
                     col_to_use = f'{var}_norm'
                 else:
