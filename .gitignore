@@ -74,3 +74,6 @@ csv_analysis_*.txt
 *.aux
 *.gz
 *.gz
+second part/source/latex_paper/my paper/isd.synctex.gz
+second part/source/latex_paper/my paper/isd.blg
+second part/source/latex_paper/my paper/isd.bbl
