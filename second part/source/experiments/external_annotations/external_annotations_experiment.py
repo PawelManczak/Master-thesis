@@ -3,7 +3,7 @@
 Experiment: Cross-Dataset Analysis of External Annotations
 
 Compares ARMADA rules found in:
-- EMBOA (BORIS method II external annotations, 1 Hz → 5s windows)
+- EMBOA (BORIS method II external annotations, 1 Hz -> 5s windows)
 - K-emoCon (aggregated external annotations, 5s intervals)
 
 Both datasets use **external observer** annotations, making them
@@ -130,7 +130,7 @@ def generate_report(
     lines.append("")
     lines.append("This experiment identifies rules that are universally present")
     lines.append("across datasets using **external observer annotations**:")
-    lines.append("- **EMBOA**: BORIS method II (6 emotions × % agreement → arousal/valence)")
+    lines.append("- **EMBOA**: BORIS method II (6 emotions x % agreement -> arousal/valence)")
     lines.append("- **K-emoCon external**: Aggregated external annotations (arousal/valence 1–5)")
     lines.append("")
 
@@ -150,7 +150,6 @@ def generate_report(
     lines.append(f"- **FILTER_SINGLE_FEATURE**: {FILTER_SINGLE_FEATURE}")
     lines.append("")
 
-    # Dataset statistics
     lines.append("## Dataset Processing")
     lines.append("")
     lines.append(f"Evaluated on {datasets_count} datasets: {', '.join(all_results.keys())}")
@@ -263,8 +262,6 @@ def generate_report(
 
 
 def main():
-    """Main experiment function."""
-
     DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
     OUTPUT_DIR = SCRIPT_DIR / "results"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -276,7 +273,6 @@ def main():
     print(f"Results: {OUTPUT_DIR}")
     print()
 
-    # Datasets mapping
     datasets = {
         'EMBOA': DATA_DIR / "armada_emboa.csv",
         'K-emoCon-ext': DATA_DIR / "armada_k_emocon_ext.csv",
@@ -337,12 +333,10 @@ def main():
     print(f"\nRules universal across ALL {len(dataset_names)} datasets: "
           f"{len(universal_rules)}")
 
-    # Save details
     universal_rules_df = save_universal_rules_details(
         universal_rules, all_results, OUTPUT_DIR
     )
 
-    # Generate report
     generate_report(
         datasets_count=len(dataset_names),
         all_results=all_results,

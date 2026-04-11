@@ -28,7 +28,7 @@ from armada_algorithm import ARMADA
 # ============================================================================
 MINSUP = 0.3       # 20% minimum support
 MINCONF = 0.5      # 30% minimum confidence
-MAXGAP = 10       # 60s max gap
+MAXGAP = 5       # 60s max gap
 MAX_PATTERN_SIZE = 3  # max depth 2
 
 # ============================================================================
@@ -384,7 +384,7 @@ def generate_markdown_report(
     lines.append("")
 
     if common_all > 0:
-        lines.append(f"**YES** - {common_all} patterns are common to all datasets, making them universal.")
+        lines.append(f"Yes - {common_all} patterns are common to all datasets, making them universal.")
     else:
         lines.append("**NO** - No patterns found common to all datasets.")
 

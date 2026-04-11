@@ -65,14 +65,6 @@ from bvp_utils import compute_metrics_from_ibi, HRV_KEYS, _empty_hrv_result
 # 4. Feature extraction in windows: from phasic (SCR peaks/amp/AUC) + tonic (SCL mean)
 # 5. Intra-individual Min-Max normalization - Lykken & Venables (1971), Boucsein (2012)
 # 6. Discretization into Low/Medium/High categories (terciles 0.33/0.67)
-#
-# References:
-# - Makowski, D. et al. (2021). NeuroKit2. Behavior Research Methods, 53, 1689-1696.
-# - Greco, A. et al. (2016). cvxEDA: A Convex Optimization Approach. IEEE TBME.
-# - Benedek, M. & Kaernbach, C. (2010). Continuous Decomposition Analysis. Psychophysiology.
-# - Braithwaite, J.J. et al. (2013). A Guide for Analysing EDA. Birmingham.
-# - Boucsein, W. (2012). Electrodermal Activity. Springer.
-# - Lykken, D.T. & Venables, P.H. (1971). Direct measurement of skin conductance.
 # =============================================================================
 
 
@@ -218,7 +210,8 @@ def compute_eda_features(
 
         # AUC from positive part of phasic
         positive_phasic = np.maximum(phasic_values, 0.0)
-        scr_auc = float(np.trapezoid(positive_phasic, dx=1.0/fs)) if len(positive_phasic) > 1 else 0.0
+        _trapz = getattr(np, 'trapezoid', np.trapz)  # numpy 2.0+ vs 1.x
+        scr_auc = float(_trapz(positive_phasic, dx=1.0/fs)) if len(positive_phasic) > 1 else 0.0
 
         return {
             'eda_mean': eda_mean,
@@ -350,7 +343,8 @@ def compute_bvp_features(values: np.ndarray, fs: float) -> dict:
             # Power in cardiac band (0.5-4 Hz)
             cardiac_band = (freqs >= 0.5) & (freqs <= 4.0)
             if np.any(cardiac_band):
-                spectral_power = float(np.trapezoid(psd[cardiac_band], freqs[cardiac_band]))
+                _trapz = getattr(np, 'trapezoid', np.trapz)  # numpy 2.0+ vs 1.x
+                spectral_power = float(_trapz(psd[cardiac_band], freqs[cardiac_band]))
         except:
             pass
 

@@ -2,19 +2,19 @@
 """
 Experiment: Self-Annotations vs External Annotations Comparison
 
-Compares ARMADA rules found using two annotation sources on K-emoCon:
-- K-emoCon (self-annotations): participants' own arousal/valence ratings
-- K-emoCon (external annotations): aggregated external observer ratings
+Compares ARMADA rules found using two annotation paradigms:
 
-Both use the same physiological data (Empatica E4), only annotation
-source differs. This isolates the effect of annotation perspective
-on discovered temporal patterns.
+SELF-ANNOTATED datasets (participants rate their own emotions):
+  - CASE, K-emoCon (self), CEAP-360VR, EmoWorker_v2
+
+EXTERNAL-ANNOTATED datasets (observers rate participants' emotions):
+  - K-emoCon (external), EMBOA
 
 Analysis:
-1. Runs ARMADA on each annotation variant separately.
-2. Compares rule sets: shared, self-only, external-only.
-3. Jaccard similarity of rule sets.
-4. Per-rule confidence/support comparison for shared rules.
+1. Runs ARMADA on each dataset independently.
+2. Computes per-dataset rule sets after semantic filtering.
+3. Compares union of self-rules vs union of external-rules.
+4. Special focus on K-emoCon (same physio data, both annotation types).
 5. Generates detailed Markdown report.
 """
 
@@ -23,6 +23,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Set, Tuple
+from datetime import datetime
 
 SCRIPT_DIR = Path(__file__).parent
 EXPERIMENTS_DIR = SCRIPT_DIR.parent
@@ -32,11 +33,11 @@ sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 sys.path.insert(0, str(EXPERIMENTS_DIR))
 
 # ============================================================================
-# EXPERIMENT PARAMETERS (same as external_annotations_experiment)
+# EXPERIMENT PARAMETERS
 # ============================================================================
-MINSUP = 0.4
-MINCONF = 0.4
-MAXGAP = 20
+MINSUP = 0.5
+MINCONF = 0.5
+MAXGAP = 5
 MAX_PATTERN_SIZE = 2
 
 # ============================================================================
@@ -46,6 +47,23 @@ FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True
 FILTER_PHYSIO_CROSS = True
 FILTER_SINGLE_FEATURE = True
+
+# ============================================================================
+# DATASETS
+# ============================================================================
+DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
+
+SELF_DATASETS = {
+    "CASE":         DATA_DIR / "armada_case.csv",
+    "K-emoCon":     DATA_DIR / "armada_k_emocon.csv",
+    "CEAP":         DATA_DIR / "armada_ceap.csv",
+    "EmoWorker_v2": DATA_DIR / "armada_emoworker_v2.csv",
+}
+
+EXTERNAL_DATASETS = {
+    "K-emoCon (ext)": DATA_DIR / "armada_k_emocon_ext.csv",
+    "EMBOA":          DATA_DIR / "armada_emboa.csv",
+}
 
 try:
     from experiment_utils import (
@@ -85,32 +103,76 @@ def get_rule_details(rules: List) -> Dict[str, dict]:
     return details
 
 
-def generate_report(
-    self_armada: ARMADA, self_rules: List,
-    ext_armada: ARMADA, ext_rules: List,
-    self_filtered: Set[str], ext_filtered: Set[str],
-    output_dir: Path
-) -> None:
-    """Generates a detailed comparison report."""
+def process_dataset_group(datasets: dict) -> dict:
+    """
+    Runs ARMADA on each dataset in the group.
+    Returns dict: {name: {armada, rules, raw_sigs, filtered_sigs, details, n_participants}}
+    """
+    results = {}
+    for name, path in datasets.items():
+        if not path.exists():
+            print(f"  WARNING: {name} file not found: {path}, skipping")
+            continue
 
-    shared = self_filtered & ext_filtered
-    self_only = self_filtered - ext_filtered
-    ext_only = ext_filtered - self_filtered
-    jaccard = jaccard_similarity(self_filtered, ext_filtered)
+        print(f"\n{'='*60}")
+        print(f"Processing: {name}")
+        print(f"{'='*60}")
 
-    self_details = get_rule_details(self_rules)
-    ext_details = get_rule_details(ext_rules)
+        armada, patterns, rules = run_armada_on_dataset(path)
+        raw_sigs = extract_rule_signatures(rules)
+        filtered = filter_rules(
+            raw_sigs, FILTER_BVP_ONLY, FILTER_EDA_ONLY,
+            FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE
+        )
+        details = get_rule_details(rules)
+
+        results[name] = {
+            'armada': armada,
+            'rules': rules,
+            'raw_sigs': raw_sigs,
+            'filtered': filtered,
+            'details': details,
+            'n_participants': armada.num_clients,
+            'n_raw': len(rules),
+            'n_filtered': len(filtered),
+        }
+
+        print(f"  Participants: {armada.num_clients}")
+        print(f"  Raw rules: {len(rules)}")
+        print(f"  Filtered: {len(filtered)}")
+
+    return results
+
+
+def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> None:
+    """Generates a comprehensive comparison report."""
+
+    # Union of all self rules and all external rules
+    all_self_rules = set()
+    for r in self_results.values():
+        all_self_rules |= r['filtered']
+
+    all_ext_rules = set()
+    for r in ext_results.values():
+        all_ext_rules |= r['filtered']
+
+    shared_all = all_self_rules & all_ext_rules
+    self_only_all = all_self_rules - all_ext_rules
+    ext_only_all = all_ext_rules - all_self_rules
+    jaccard_all = jaccard_similarity(all_self_rules, all_ext_rules)
 
     lines = []
     lines.append("# Self vs External Annotations — Rule Comparison")
     lines.append("")
-    lines.append("Comparison of ARMADA rules discovered using the **same physiological data**")
-    lines.append("(K-emoCon, Empatica E4) but different annotation sources:")
-    lines.append("- **Self**: participants' own arousal/valence ratings (1–5 scale, every 5s)")
-    lines.append("- **External**: aggregated external observer ratings (1–5 scale, every 5s)")
+    lines.append("Comparison of ARMADA rules discovered across **self-annotated** and")
+    lines.append("**externally-annotated** physiological datasets.")
+    lines.append("")
+    lines.append("**Self-annotated datasets**: " + ", ".join(self_results.keys()))
+    lines.append("")
+    lines.append("**External-annotated datasets**: " + ", ".join(ext_results.keys()))
     lines.append("")
 
-    # Params
+    # Parameters
     lines.append("## Parameters")
     lines.append("")
     lines.append(f"| Parameter | Value |")
@@ -119,96 +181,151 @@ def generate_report(
     lines.append(f"| minconf | {MINCONF} ({MINCONF*100:.0f}%) |")
     lines.append(f"| maxgap | {MAXGAP}s |")
     lines.append(f"| max_pattern_size | {MAX_PATTERN_SIZE} |")
-    lines.append(f"| FILTER_BVP_ONLY | {FILTER_BVP_ONLY} |")
-    lines.append(f"| FILTER_EDA_ONLY | {FILTER_EDA_ONLY} |")
-    lines.append(f"| FILTER_PHYSIO_CROSS | {FILTER_PHYSIO_CROSS} |")
-    lines.append(f"| FILTER_SINGLE_FEATURE | {FILTER_SINGLE_FEATURE} |")
     lines.append("")
 
-    # Overview
-    lines.append("## Overview")
+    # Per-dataset stats
+    lines.append("## Per-Dataset Statistics")
     lines.append("")
-    lines.append("| Metric | Self-annotations | External annotations |")
-    lines.append("|--------|-----------------|---------------------|")
-    lines.append(f"| Participants | {self_armada.num_clients} | {ext_armada.num_clients} |")
-    lines.append(f"| Raw rules | {len(self_rules)} | {len(ext_rules)} |")
-    lines.append(f"| Filtered rules | {len(self_filtered)} | {len(ext_filtered)} |")
+    lines.append("### Self-Annotated Datasets")
     lines.append("")
-    lines.append(f"**Jaccard similarity**: {jaccard:.3f}")
-    lines.append("")
-    lines.append(f"| Set | Count |")
-    lines.append(f"|-----|-------|")
-    lines.append(f"| Shared (both) | **{len(shared)}** |")
-    lines.append(f"| Self-only | {len(self_only)} |")
-    lines.append(f"| External-only | {len(ext_only)} |")
-    lines.append(f"| Union | {len(self_filtered | ext_filtered)} |")
+    lines.append("| Dataset | N | Raw Rules | Filtered Rules |")
+    lines.append("|---------|---|-----------|----------------|")
+    for name, r in self_results.items():
+        lines.append(f"| {name} | {r['n_participants']} | {r['n_raw']} | {r['n_filtered']} |")
     lines.append("")
 
-    # Shared rules — detailed comparison
-    if shared:
-        lines.append("## Shared Rules (present in both annotation variants)")
+    lines.append("### External-Annotated Datasets")
+    lines.append("")
+    lines.append("| Dataset | N | Raw Rules | Filtered Rules |")
+    lines.append("|---------|---|-----------|----------------|")
+    for name, r in ext_results.items():
+        lines.append(f"| {name} | {r['n_participants']} | {r['n_raw']} | {r['n_filtered']} |")
+    lines.append("")
+
+    # Overall comparison
+    lines.append("## Overall Comparison (Union of All Rules)")
+    lines.append("")
+    lines.append("| Metric | Value |")
+    lines.append("|--------|-------|")
+    lines.append(f"| Total unique self rules | {len(all_self_rules)} |")
+    lines.append(f"| Total unique external rules | {len(all_ext_rules)} |")
+    lines.append(f"| Shared rules | **{len(shared_all)}** |")
+    lines.append(f"| Self-only rules | {len(self_only_all)} |")
+    lines.append(f"| External-only rules | {len(ext_only_all)} |")
+    lines.append(f"| Jaccard similarity | {jaccard_all:.3f} |")
+    lines.append("")
+
+    # K-emoCon controlled comparison
+    if "K-emoCon" in self_results and "K-emoCon (ext)" in ext_results:
+        kemo_self = self_results["K-emoCon"]['filtered']
+        kemo_ext = ext_results["K-emoCon (ext)"]['filtered']
+        kemo_shared = kemo_self & kemo_ext
+        kemo_jaccard = jaccard_similarity(kemo_self, kemo_ext)
+
+        kemo_self_details = self_results["K-emoCon"]['details']
+        kemo_ext_details = ext_results["K-emoCon (ext)"]['details']
+
+        lines.append("## K-emoCon Controlled Comparison")
         lines.append("")
-        lines.append(f"Found **{len(shared)}** rules common to both self and external annotations.")
+        lines.append("Same physiological data (Empatica E4), different annotation source.")
         lines.append("")
-        lines.append("| Rule | Self Conf | Ext Conf | Self Sup | Ext Sup |")
-        lines.append("|------|----------|---------|---------|---------|")
-
-        shared_rows = []
-        for sig in sorted(shared):
-            s = self_details.get(sig, {})
-            e = ext_details.get(sig, {})
-            s_conf = s.get('confidence', 0)
-            e_conf = e.get('confidence', 0)
-            s_sup = s.get('support', 0)
-            e_sup = e.get('support', 0)
-            delta = e_conf - s_conf
-            shared_rows.append((sig, s_conf, e_conf, delta, s_sup, e_sup))  # delta kept for sorting
-
-        # Sort by absolute delta (most different first)
-        shared_rows.sort(key=lambda x: -abs(x[3]))
-
-        for sig, s_conf, e_conf, delta, s_sup, e_sup in shared_rows:
-            lines.append(
-                f"| `{sig}` | {s_conf:.3f} | {e_conf:.3f} | "
-                f"{s_sup:.3f} | {e_sup:.3f} |"
-            )
+        lines.append("| Metric | Self | External |")
+        lines.append("|--------|------|----------|")
+        lines.append(f"| Filtered rules | {len(kemo_self)} | {len(kemo_ext)} |")
+        lines.append(f"| Shared | \\multicolumn{{2}}{{c|}}{{{len(kemo_shared)}}} |")
+        lines.append(f"| Self-only | {len(kemo_self - kemo_ext)} | — |")
+        lines.append(f"| External-only | — | {len(kemo_ext - kemo_self)} |")
+        lines.append(f"| Jaccard similarity | \\multicolumn{{2}}{{c|}}{{{kemo_jaccard:.3f}}} |")
         lines.append("")
 
-        # Summary of confidence shifts
-        deltas = [row[3] for row in shared_rows]
-        avg_delta = np.mean(deltas)
-        higher_ext = sum(1 for d in deltas if d > 0.05)
-        higher_self = sum(1 for d in deltas if d < -0.05)
-        similar = len(deltas) - higher_ext - higher_self
+        # Shared rules with confidence comparison
+        if kemo_shared:
+            lines.append("### K-emoCon Shared Rules")
+            lines.append("")
+            lines.append("| Rule | Self Conf | Ext Conf | Δ |")
+            lines.append("|------|----------|---------|---|")
 
-        lines.append("### Confidence Shift Summary")
+            shared_rows = []
+            for sig in kemo_shared:
+                s_conf = kemo_self_details.get(sig, {}).get('confidence', 0)
+                e_conf = kemo_ext_details.get(sig, {}).get('confidence', 0)
+                delta = e_conf - s_conf
+                shared_rows.append((sig, s_conf, e_conf, delta))
+
+            shared_rows.sort(key=lambda x: -abs(x[3]))
+            for sig, s_conf, e_conf, delta in shared_rows:
+                lines.append(f"| `{sig}` | {s_conf:.3f} | {e_conf:.3f} | {delta:+.3f} |")
+            lines.append("")
+
+            deltas = [row[3] for row in shared_rows]
+            avg_delta = np.mean(deltas)
+            higher_ext = sum(1 for d in deltas if d > 0.05)
+            higher_self = sum(1 for d in deltas if d < -0.05)
+            similar = len(deltas) - higher_ext - higher_self
+
+            lines.append(f"- Mean Δ confidence (ext − self): **{avg_delta:+.3f}**")
+            lines.append(f"- Rules with higher confidence in external: {higher_ext}")
+            lines.append(f"- Rules with higher confidence in self: {higher_self}")
+            lines.append(f"- Rules with similar confidence (|Δ| ≤ 0.05): {similar}")
+            lines.append("")
+
+    # Cross-dataset pairwise Jaccard matrix
+    lines.append("## Pairwise Jaccard Similarity Matrix")
+    lines.append("")
+    all_datasets = {}
+    for name, r in self_results.items():
+        all_datasets[f"{name} (self)"] = r['filtered']
+    for name, r in ext_results.items():
+        all_datasets[name] = r['filtered']
+
+    names = list(all_datasets.keys())
+    lines.append("| | " + " | ".join(names) + " |")
+    lines.append("|" + "---|" * (len(names) + 1))
+    for n1 in names:
+        row = f"| **{n1}** |"
+        for n2 in names:
+            if n1 == n2:
+                row += " 1.000 |"
+            else:
+                j = jaccard_similarity(all_datasets[n1], all_datasets[n2])
+                row += f" {j:.3f} |"
+        lines.append(row)
+    lines.append("")
+
+    # Shared rules across ALL datasets
+    if shared_all:
+        lines.append("## Shared Rules (present in both self and external unions)")
         lines.append("")
-        lines.append(f"- Mean Δ confidence (ext − self): **{avg_delta:+.3f}**")
-        lines.append(f"- Rules with higher confidence in external: {higher_ext}")
-        lines.append(f"- Rules with higher confidence in self: {higher_self}")
-        lines.append(f"- Rules with similar confidence (|Δ| ≤ 0.05): {similar}")
+        lines.append(f"Found **{len(shared_all)}** rules in common.")
+        lines.append("")
+        lines.append("| Rule | Present in (self) | Present in (ext) |")
+        lines.append("|------|-------------------|------------------|")
+        for sig in sorted(shared_all):
+            self_present = [n for n, r in self_results.items() if sig in r['filtered']]
+            ext_present = [n for n, r in ext_results.items() if sig in r['filtered']]
+            lines.append(f"| `{sig}` | {', '.join(self_present)} | {', '.join(ext_present)} |")
         lines.append("")
 
     # Self-only rules
-    if self_only:
+    if self_only_all:
         lines.append("## Self-Only Rules")
         lines.append("")
-        lines.append(f"**{len(self_only)}** rules found only with self-annotations:")
+        lines.append(f"**{len(self_only_all)}** rules found only in self-annotated datasets.")
         lines.append("")
-        for sig in sorted(self_only):
-            s = self_details.get(sig, {})
-            lines.append(f"- `{sig}` (conf={s.get('confidence', 0):.3f}, sup={s.get('support', 0):.3f})")
+        for sig in sorted(self_only_all):
+            present_in = [n for n, r in self_results.items() if sig in r['filtered']]
+            lines.append(f"- `{sig}` (in: {', '.join(present_in)})")
         lines.append("")
 
     # External-only rules
-    if ext_only:
+    if ext_only_all:
         lines.append("## External-Only Rules")
         lines.append("")
-        lines.append(f"**{len(ext_only)}** rules found only with external annotations:")
+        lines.append(f"**{len(ext_only_all)}** rules found only in externally-annotated datasets.")
         lines.append("")
-        for sig in sorted(ext_only):
-            e = ext_details.get(sig, {})
-            lines.append(f"- `{sig}` (conf={e.get('confidence', 0):.3f}, sup={e.get('support', 0):.3f})")
+        for sig in sorted(ext_only_all):
+            present_in = [n for n, r in ext_results.items() if sig in r['filtered']]
+            lines.append(f"- `{sig}` (in: {', '.join(present_in)})")
         lines.append("")
 
     # Save
@@ -218,111 +335,75 @@ def generate_report(
         f.write(report_text)
     print(f"Report saved: {report_path}")
 
-    # Save shared rules CSV
-    if shared:
-        rows = []
-        for sig in sorted(shared):
-            s = self_details.get(sig, {})
-            e = ext_details.get(sig, {})
-            rows.append({
-                'rule': sig,
-                'self_confidence': round(s.get('confidence', 0), 4),
-                'ext_confidence': round(e.get('confidence', 0), 4),
-                'delta_confidence': round(e.get('confidence', 0) - s.get('confidence', 0), 4),
-                'self_support': round(s.get('support', 0), 4),
-                'ext_support': round(e.get('support', 0), 4),
-                'self_count': s.get('count', 0),
-                'ext_count': e.get('count', 0),
-            })
-        pd.DataFrame(rows).to_csv(
-            output_dir / "shared_rules_comparison.csv", index=False
-        )
-        print(f"Shared rules CSV saved: {output_dir / 'shared_rules_comparison.csv'}")
-
 
 def main():
-    DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
     OUTPUT_DIR = SCRIPT_DIR / "results"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 80)
     print("EXPERIMENT: SELF vs EXTERNAL ANNOTATIONS COMPARISON")
     print("=" * 80)
-    print(f"Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"Results: {OUTPUT_DIR}")
     print()
 
-    # Dataset paths
-    self_file = DATA_DIR / "armada_k_emocon.csv"
-    ext_file = DATA_DIR / "armada_k_emocon_ext.csv"
+    # Verify all files exist
+    print("Self-annotated datasets:")
+    for name, path in SELF_DATASETS.items():
+        status = "OK" if path.exists() else "MISSING"
+        print(f"  [{status}] {name}: {path.name}")
 
-    for name, path in [("Self", self_file), ("External", ext_file)]:
-        if not path.exists():
-            print(f"ERROR: {name} file not found: {path}")
-            sys.exit(1)
+    print("\nExternal-annotated datasets:")
+    for name, path in EXTERNAL_DATASETS.items():
+        status = "OK" if path.exists() else "MISSING"
+        print(f"  [{status}] {name}: {path.name}")
 
-    # Run ARMADA on self-annotations
-    print(f"\n{'='*60}")
-    print("Processing: K-emoCon SELF-annotations")
-    print(f"{'='*60}")
-    self_armada, self_patterns, self_rules = run_armada_on_dataset(self_file)
-    self_raw_sigs = extract_rule_signatures(self_rules)
-    self_filtered = filter_rules(
-        self_raw_sigs, FILTER_BVP_ONLY, FILTER_EDA_ONLY,
-        FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE
-    )
-    print(f"  Raw rules: {len(self_rules)}")
-    print(f"  Filtered: {len(self_filtered)}")
+    # Process all datasets
+    print("\n" + "=" * 80)
+    print("PROCESSING SELF-ANNOTATED DATASETS")
+    print("=" * 80)
+    self_results = process_dataset_group(SELF_DATASETS)
 
-    # Run ARMADA on external annotations
-    print(f"\n{'='*60}")
-    print("Processing: K-emoCon EXTERNAL annotations")
-    print(f"{'='*60}")
-    ext_armada, ext_patterns, ext_rules = run_armada_on_dataset(ext_file)
-    ext_raw_sigs = extract_rule_signatures(ext_rules)
-    ext_filtered = filter_rules(
-        ext_raw_sigs, FILTER_BVP_ONLY, FILTER_EDA_ONLY,
-        FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE
-    )
-    print(f"  Raw rules: {len(ext_rules)}")
-    print(f"  Filtered: {len(ext_filtered)}")
+    print("\n" + "=" * 80)
+    print("PROCESSING EXTERNAL-ANNOTATED DATASETS")
+    print("=" * 80)
+    ext_results = process_dataset_group(EXTERNAL_DATASETS)
 
-    # Compare
+    # Summary
+    all_self = set()
+    for r in self_results.values():
+        all_self |= r['filtered']
+
+    all_ext = set()
+    for r in ext_results.values():
+        all_ext |= r['filtered']
+
+    shared = all_self & all_ext
+    jaccard = jaccard_similarity(all_self, all_ext)
+
     print(f"\n{'='*80}")
-    print("COMPARISON RESULTS")
+    print("OVERALL COMPARISON")
     print(f"{'='*80}")
-
-    shared = self_filtered & ext_filtered
-    self_only = self_filtered - ext_filtered
-    ext_only = ext_filtered - self_filtered
-    jaccard = jaccard_similarity(self_filtered, ext_filtered)
-
-    print(f"  Self filtered rules:     {len(self_filtered)}")
-    print(f"  External filtered rules: {len(ext_filtered)}")
-    print(f"  Shared:                  {len(shared)}")
-    print(f"  Self-only:               {len(self_only)}")
-    print(f"  External-only:           {len(ext_only)}")
-    print(f"  Jaccard similarity:      {jaccard:.3f}")
+    print(f"  Self-annotated datasets:     {len(self_results)} ({', '.join(self_results.keys())})")
+    print(f"  External-annotated datasets: {len(ext_results)} ({', '.join(ext_results.keys())})")
+    print(f"  Total unique self rules:     {len(all_self)}")
+    print(f"  Total unique ext rules:      {len(all_ext)}")
+    print(f"  Shared:                      {len(shared)}")
+    print(f"  Self-only:                   {len(all_self - all_ext)}")
+    print(f"  External-only:               {len(all_ext - all_self)}")
+    print(f"  Jaccard similarity:          {jaccard:.3f}")
 
     # Generate report
-    generate_report(
-        self_armada, self_rules,
-        ext_armada, ext_rules,
-        self_filtered, ext_filtered,
-        OUTPUT_DIR
-    )
+    generate_report(self_results, ext_results, OUTPUT_DIR)
 
+    # Print top shared rules
     if shared:
-        self_details = get_rule_details(self_rules)
-        ext_details = get_rule_details(ext_rules)
-        print(f"\nTOP SHARED RULES (by avg confidence):")
-        for sig in sorted(shared,
-                          key=lambda s: -(self_details.get(s, {}).get('confidence', 0)
-                                          + ext_details.get(s, {}).get('confidence', 0)) / 2)[:10]:
-            s_c = self_details.get(sig, {}).get('confidence', 0)
-            e_c = ext_details.get(sig, {}).get('confidence', 0)
+        print(f"\nTOP SHARED RULES (alphabetical, max 15):")
+        for sig in sorted(shared)[:15]:
+            self_present = [n for n, r in self_results.items() if sig in r['filtered']]
+            ext_present = [n for n, r in ext_results.items() if sig in r['filtered']]
             print(f"  {sig}")
-            print(f"    self_conf={s_c:.3f}, ext_conf={e_c:.3f}, Δ={e_c - s_c:+.3f}")
+            print(f"    self: {', '.join(self_present)} | ext: {', '.join(ext_present)}")
 
     print(f"\n{'='*80}")
     print("EXPERIMENT FINISHED")

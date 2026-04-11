@@ -219,7 +219,7 @@ def plot_age_comparison(all_data: pd.DataFrame, demo_df: pd.DataFrame, output_di
 
 
 def plot_heatmap(all_data: pd.DataFrame, output_dir: Path):
-    """Creates a feature × dataset normalized heatmap."""
+    """Creates a feature x dataset normalized heatmap."""
     ds_names = sorted(all_data['dataset'].unique())
     features = list(FEATURE_CATEGORIES.keys())
 
@@ -265,7 +265,7 @@ def generate_report(output_dir: Path):
     lines.append("broken down by dataset, gender (M vs F), and age group (young ≤25 vs old >25).")
     lines.append("")
 
-    lines.append("## Feature × Dataset Heatmap")
+    lines.append("## Feature x Dataset Heatmap")
     lines.append("")
     lines.append("![Heatmap](heatmap_feature_dataset.png)")
     lines.append("")

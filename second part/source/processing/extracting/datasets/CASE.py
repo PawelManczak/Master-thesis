@@ -27,7 +27,7 @@ from feature_utils import (
 )
 from demographics_utils import get_age_group
 from windowing_utils import extract_window_features
-from config import WINDOW_SEC, CASE_FS_PHYSIO as FS_PHYSIO, CASE_FS_ANNOT as FS_ANNOT
+from config import WINDOW_FAST_SEC, WINDOW_SLOW_SEC, CASE_FS_PHYSIO as FS_PHYSIO, CASE_FS_ANNOT as FS_ANNOT
 
 warnings.filterwarnings('ignore')
 
@@ -297,13 +297,14 @@ def process_participant(pid, physio_file, annot_file, demographics=None):
         'type': 'ecg', 'ts_ecg': daqtime, 'r_peaks': r_peaks, 'fs': FS_PHYSIO
     }
 
-    # 30-second windows (Local Aggregation)
-    window_size_ms = WINDOW_SEC * 1000
+    # Dual-resolution windows (Local Aggregation)
+    window_fast_ms = WINDOW_FAST_SEC * 1000
+    window_slow_ms = WINDOW_SLOW_SEC * 1000
     results = []
-    n_windows = int(max_time / window_size_ms)
 
-    for i, window_start in enumerate(range(0, int(max_time), window_size_ms)):
-        window_end = window_start + window_size_ms
+    # --- LOOP 1: FAST WINDOWS ---
+    for window_start in range(0, int(max_time), window_fast_ms):
+        window_end = window_start + window_fast_ms
 
         # Annotation indices
         js_mask = (jstime >= window_start) & (jstime < window_end)
@@ -311,39 +312,62 @@ def process_participant(pid, physio_file, annot_file, demographics=None):
         if not np.any(js_mask):
             continue
 
-        # Arousal & Valence
-        arousal = np.mean(arousal_arr[js_mask])
-        valence = np.mean(valence_arr[js_mask])
-
         record = {
-            'seconds': window_end,
+            'seconds': window_end / 1000.0,
             'video_id': 0, # Placeholder
-            'arousal': arousal,
-            'valence': valence
+            'arousal': np.mean(arousal_arr[js_mask]),
+            'valence': np.mean(valence_arr[js_mask]),
+            'window_type': 'fast'
         }
 
-
-
-        # Feature extraction
+        # Fast Feature extraction
         features = extract_window_features(
             window_start, window_end,
             eda_data=eda_data_dict,
-            temp_data=temp_data_dict,
+            temp_data=None,
             hr_data=hr_data_dict,
-            hrv_data=hrv_data_dict
+            hrv_data=None
         )
         record.update(features)
+        
+        record['temp_mean'] = np.nan
+        record['temp_slope'] = np.nan
 
         results.append(record)
 
-        # Progress
-        if (i + 1) % 100 == 0:
-            print(f"    Okno {i+1}/{n_windows}", flush=True)
+    # --- LOOP 2: SLOW WINDOWS ---
+    for window_start in range(0, int(max_time), window_slow_ms):
+        window_end = window_start + window_slow_ms
+
+        js_mask = (jstime >= window_start) & (jstime < window_end)
+
+        if not np.any(js_mask):
+            continue
+
+        record = {
+            'seconds': window_end / 1000.0,
+            'video_id': 0,
+            'arousal': np.nan,
+            'valence': np.nan,
+            'window_type': 'slow'
+        }
+
+        # Slow Feature extraction
+        features = extract_window_features(
+            window_start, window_end,
+            eda_data=None,
+            temp_data=temp_data_dict,
+            hr_data=None,
+            hrv_data=hrv_data_dict
+        )
+        record.update(features)
+        results.append(record)
 
     if len(results) == 0:
         return None
 
     df = pd.DataFrame(results)
+    df = df.sort_values('seconds').reset_index(drop=True)
 
     if demographics:
         df['gender'] = demographics.get('gender', 'Unknown')

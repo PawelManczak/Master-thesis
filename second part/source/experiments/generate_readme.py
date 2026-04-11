@@ -13,15 +13,12 @@ from pathlib import Path
 from datetime import datetime
 import pandas as pd
 
-# Paths
 SCRIPT_DIR = Path(__file__).parent
 RESULTS_DIR = SCRIPT_DIR / "results"
 OUTPUT_FILE = RESULTS_DIR / "README.md"
 
 
 def load_experiment_data():
-    """Loads experiment data."""
-    # Load JSON summary
     summary_file = RESULTS_DIR / "experiment_summary.json"
     if not summary_file.exists():
         raise FileNotFoundError(f"Missing file {summary_file}. Run compare_datasets.py first")
@@ -29,11 +26,9 @@ def load_experiment_data():
     with open(summary_file) as f:
         summary = json.load(f)
 
-    # Load common patterns
     patterns_file = RESULTS_DIR / "common_patterns_details.csv"
     patterns_df = pd.read_csv(patterns_file) if patterns_file.exists() else pd.DataFrame()
 
-    # Load common rules
     rules_file = RESULTS_DIR / "common_rules_details.csv"
     rules_df = pd.read_csv(rules_file) if rules_file.exists() else pd.DataFrame()
 
@@ -43,58 +38,39 @@ def load_experiment_data():
 def interpret_pattern(pattern: str) -> str:
     """Interprets a pattern in natural language."""
 
-    # Mapping states to descriptions
     state_descriptions = {
              'arousal_low': 'low emotional arousal (relaxation, sleepiness)',
         'arousal_medium': 'moderate arousal (normal alertness)',
         'arousal_high': 'high arousal (excitement or stress)',
 
-        # Valence
         'valence_low': 'negative valence (unpleasant emotions)',
         'valence_medium': 'neutral valence',
         'valence_high': 'positive valence (pleasant emotions)',
-
-        # EDA (SCL - Skin Conductance Level, tonic component)
         'eda_low': 'low skin conductance (low stress, relaxation)',
         'eda_medium': 'medium skin conductance (normal wakefulness)',
         'eda_high': 'high skin conductance (high stress/arousal)',
 
-        # EDA SCR amplitude (Skin Conductance Response - phasic component)
         'eda_scr_amp_low': 'low SCR amplitude (weak emotional responses)',
         'eda_scr_amp_medium': 'medium SCR amplitude',
         'eda_scr_amp_high': 'high SCR amplitude (strong emotional responses)',
-
-        # EDA SCR AUC (area under curve - total phasic activity)
         'eda_scr_auc_low': 'low total electrodermal activity (few responses)',
         'eda_scr_auc_medium': 'medium total electrodermal activity',
         'eda_scr_auc_high': 'high total electrodermal activity (intense responses)',
-
-        # EDA std (phasic component variability - SCR variability)
         'eda_std_low': 'low SCR variability (stable signal)',
         'eda_std_medium': 'medium SCR variability',
         'eda_std_high': 'high SCR variability (unstable signal)',
-
-        # EDA max (maximum signal in window)
         'eda_max_low': 'low maximum skin conductance',
         'eda_max_medium': 'medium maximum skin conductance',
         'eda_max_high': 'high maximum skin conductance (strong response)',
-
-        # EDA peaks (number of SCR peaks - response frequency)
         'eda_peaks_low': 'low number of SCRs (1-3 SCR/min, relaxation)',
         'eda_peaks_medium': 'medium number of SCRs',
         'eda_peaks_high': 'high number of SCRs (high sympathetic activity)',
-
-        # HR
         'hr_low': 'low heart rate',
         'hr_medium': 'normal heart rate',
         'hr_high': 'elevated heart rate',
-
-        # TEMP
         'temp_low': 'low skin temperature',
         'temp_medium': 'normal skin temperature',
         'temp_high': 'elevated skin temperature',
-
-        # HRV
         'hrv_sdnn_low': 'low heart rate variability (SDNN)',
         'hrv_sdnn_medium': 'medium heart rate variability (SDNN)',
         'hrv_sdnn_high': 'high heart rate variability (SDNN)',
@@ -103,7 +79,6 @@ def interpret_pattern(pattern: str) -> str:
         'hrv_rmssd_high': 'high heart rate variability (RMSSD)',
     }
 
-    # Relation mapping
     relation_descriptions = {
         'equals': 'co-occurs with',
         'before': 'precedes',
@@ -175,14 +150,14 @@ def generate_methodology_section(summary: dict) -> str:
     lines.append("")
 
     if filters.get('filter_bvp_only', False):
-        lines.append("- ✅ **Filtered BVP-only rules** - rules containing only HRV metrics (bvp_*) were removed")
+        lines.append("- **Filtered BVP-only rules** - rules containing only HRV metrics (bvp_*) were removed")
     else:
-        lines.append("- ❌ BVP-only filter disabled")
+        lines.append("- BVP-only filter disabled")
 
     if filters.get('filter_single_feature', False):
-        lines.append("- ✅ **Filtered single-feature rules** - rules describing only one feature (e.g. arousal) were removed")
+        lines.append("- **Filtered single-feature rules** - rules describing only one feature (e.g. arousal) were removed")
     else:
-        lines.append("- ❌ Single-feature filter disabled")
+        lines.append("- Single-feature filter disabled")
 
     lines.append("")
     lines.append("### Variable discretization")
@@ -363,9 +338,9 @@ def generate_conclusions_section(summary: dict, patterns_df: pd.DataFrame, rules
 
     # Main conclusion
     if common_patterns > 0:
-        lines.append("### ✅ Patterns are universal")
+        lines.append("### Patterns are universal")
         lines.append("")
-        lines.append(f"**YES** - found **{common_patterns}** patterns common to all three ")
+        lines.append(f"Yes - found **{common_patterns}** patterns common to all three ")
         lines.append("datasets. This means that certain dependencies between emotional ")
         lines.append("states and physiological signals are universal and independent of:")
         lines.append("")
@@ -374,7 +349,7 @@ def generate_conclusions_section(summary: dict, patterns_df: pd.DataFrame, rules
         lines.append("- Measurement equipment")
         lines.append("")
     else:
-        lines.append("### ❌ No universal patterns")
+        lines.append("### No universal patterns")
         lines.append("")
         lines.append("Found no patterns common to all datasets. ")
         lines.append("This may be due to:")
@@ -384,7 +359,6 @@ def generate_conclusions_section(summary: dict, patterns_df: pd.DataFrame, rules
         lines.append("- Overly restrictive parameters (minsup, minconf)")
         lines.append("")
 
-    # Rules summary
     if common_rules > 0:
         lines.append("### Predictive rules")
         lines.append("")
@@ -404,13 +378,9 @@ def generate_readme():
 
     print("Generating README.md...")
 
-    # Load data
     summary, patterns_df, rules_df = load_experiment_data()
-
-    # Generate sections
     sections = []
 
-    # Header
     sections.append("# ARMADA Experiment Results")
     sections.append("")
     sections.append(f"*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}*")
@@ -424,7 +394,6 @@ def generate_readme():
     sections.append("datasets coming from different research protocols and populations.")
     sections.append("")
 
-    # Add sections
     sections.append(generate_methodology_section(summary))
     sections.append(generate_datasets_section(summary))
     sections.append(generate_similarity_section(summary))
@@ -432,7 +401,6 @@ def generate_readme():
     sections.append(generate_common_rules_section(rules_df))
     sections.append(generate_conclusions_section(summary, patterns_df, rules_df))
 
-    # Footer
     sections.append("---")
     sections.append("")
     sections.append("## Output files")
@@ -444,7 +412,6 @@ def generate_readme():
     sections.append("- `comparison_report.md` - detailed comparison report")
     sections.append("")
 
-    # Save README
     readme_content = "\n".join(sections)
 
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
@@ -459,11 +426,11 @@ def generate_readme():
 if __name__ == "__main__":
     try:
         output_file = generate_readme()
-        print(f"\n✅ README generated successfully: {output_file}")
+        print(f"\nREADME generated successfully: {output_file}")
     except FileNotFoundError as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nError: {e}")
         print("Run first: python compare_datasets.py")
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\nError: {e}")
         raise
 

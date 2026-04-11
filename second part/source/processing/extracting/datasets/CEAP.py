@@ -22,7 +22,7 @@ from feature_utils import (
     normalize_eda_features_subject
 )
 from windowing_utils import extract_window_features
-from config import CEAP_FS_EDA as FS_EDA, CEAP_FS_BVP as FS_BVP, CEAP_FS_ACC as FS_ACC, CEAP_WINDOW_SEC as WINDOW_SIZE
+from config import CEAP_FS_EDA as FS_EDA, CEAP_FS_BVP as FS_BVP, CEAP_FS_ACC as FS_ACC, WINDOW_FAST_SEC, WINDOW_SLOW_SEC
 
 # Paths
 BASE_DIR = Path(__file__).parent.parent.parent.parent.parent
@@ -30,7 +30,7 @@ DATA_DIR = BASE_DIR / "data" / "CEAP"
 OUTPUT_DIR = DATA_DIR / "processed"
 
 # Sampling rates and window size imported from config.py
-# (CEAP_FS_EDA, CEAP_FS_BVP, CEAP_FS_ACC, CEAP_WINDOW_SEC)
+# (CEAP_FS_EDA, CEAP_FS_BVP, CEAP_FS_ACC, WINDOW_FAST_SEC, WINDOW_SLOW_SEC)
 
 from demographics_utils import get_age_group
 
@@ -154,16 +154,18 @@ def process_video_data(video_physio: dict, video_annot: dict, demographics: dict
     ceap_ibi_vals = np.array([i['IBI'] for i in ibi_data]) if ibi_data else None
     hrv_data_dict = {'type': 'ibi', 'ts': ceap_ibi_ts, 'values': ceap_ibi_vals, 'unit': 's'} if ceap_ibi_ts is not None else None
 
-    # 5-second windows
     results = []
-    window_end = WINDOW_SIZE
+
+    # --- LOOP 1: FAST WINDOWS ---
+    window_end = WINDOW_FAST_SEC
 
     while window_end <= max_time:
-        window_start = window_end - WINDOW_SIZE
+        window_start = window_end - WINDOW_FAST_SEC
 
         record = {
-            'seconds': window_end/1000.0,
-            'video_id': video_id
+            'seconds': window_end, # Timestamp in seconds
+            'video_id': video_id,
+            'window_type': 'fast'
         }
 
         # Arousal & Valence
@@ -177,24 +179,56 @@ def process_video_data(video_physio: dict, video_annot: dict, demographics: dict
             record['arousal'] = np.nan
             record['valence'] = np.nan
 
-
-
-        # Feature extraction
+        # Fast Feature extraction
         features = extract_window_features(
             window_start, window_end,
             eda_data=eda_data_dict,
             bvp_data=bvp_data_dict,
-            temp_data=temp_data_dict,
-            acc_data=acc_data_dict,
+            temp_data=None,         # Exclude slow
+            acc_data=acc_data_dict, # Keeping ACC on fast
             hr_data=hr_data_dict,
-            hrv_data=hrv_data_dict
+            hrv_data=None           # Exclude slow
         )
         record.update(features)
 
         results.append(record)
-        window_end += WINDOW_SIZE
+        window_end += WINDOW_FAST_SEC
 
-    return pd.DataFrame(results)
+    # --- LOOP 2: SLOW WINDOWS ---
+    window_end = WINDOW_SLOW_SEC
+
+    while window_end <= max_time:
+        window_start = window_end - WINDOW_SLOW_SEC
+
+        record = {
+            'seconds': window_end, # Timestamp in seconds
+            'video_id': video_id,
+            'window_type': 'slow',
+            'arousal': np.nan,  # Exclude from slow
+            'valence': np.nan   # Exclude from slow
+        }
+
+        # Slow Feature extraction
+        features = extract_window_features(
+            window_start, window_end,
+            eda_data=None,
+            bvp_data=None,         
+            temp_data=temp_data_dict,  # Keep TEMP on slow
+            acc_data=None,
+            hr_data=None,
+            hrv_data=hrv_data_dict     # Keep HRV on slow
+        )
+        record.update(features)
+
+        results.append(record)
+        window_end += WINDOW_SLOW_SEC
+
+    if not results:
+        return None
+
+    df_results = pd.DataFrame(results)
+    df_results = df_results.sort_values('seconds').reset_index(drop=True)
+    return df_results
 
 
 def process_participant(physio_file: Path, annot_file: Path, pid: int, demographics: dict = None) -> pd.DataFrame:

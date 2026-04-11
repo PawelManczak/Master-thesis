@@ -116,7 +116,6 @@ def main():
                 ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1,
                                             fill=True, color='#e0e0e0', zorder=2))
 
-    # Text annotations
     for i in range(n_rows):
         for j in range(n_cols):
             val = matrix[i][j]
@@ -166,7 +165,6 @@ def main():
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     print(f"\nSaved PNG to {out_png}")
 
-    # Print quintuplet base intersections
     print("\nQuintuplet Base Intersections (rules shared by all 5):")
     for i, quin in enumerate(quints):
         shared = results[quin[0]]

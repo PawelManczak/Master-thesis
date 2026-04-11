@@ -102,15 +102,15 @@ def is_physio_cross_rule(rule_signature: str) -> bool:
     """
     Checks if a rule should be filtered out based on emotion/temp criteria.
     Returns True (= reject) if the rule:
-      - does NOT contain any arousal/valence state, OR
+      - does NOT contain any arousal/valence/emo_ state, OR
       - contains any temperature state.
-    In other words, only rules that include arousal/valence AND exclude temp will pass.
+    In other words, only rules that include an emotional component AND exclude temp will pass.
     """
     states = _clean_rule_signature(rule_signature)
     if not states: return False
 
     has_emotion = any(
-        state.startswith('arousal') or state.startswith('valence')
+        state.startswith('arousal') or state.startswith('valence') or state.startswith('emo_')
         for state in states
     )
     has_temp = any(state.startswith('temp') for state in states)

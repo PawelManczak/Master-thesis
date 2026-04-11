@@ -21,7 +21,7 @@ from feature_utils import (
 from bvp_utils import _empty_hrv_result
 
 from windowing_utils import extract_window_features
-from config import WINDOW_SEC, ANNOT_STEP_SEC, ANNOTS_PER_WINDOW, FS_EDA, FS_HR, FS_TEMP, FS_BVP, FS_ACC
+from config import WINDOW_FAST_SEC, WINDOW_SLOW_SEC, ANNOT_STEP_SEC, ANNOTS_PER_FAST_WINDOW, ANNOTS_PER_SLOW_WINDOW, FS_EDA, FS_HR, FS_TEMP, FS_BVP, FS_ACC
 
 # Paths
 BASE_DIR = Path(__file__).parent.parent.parent.parent.parent
@@ -232,60 +232,87 @@ def process_participant(e4_folder: str, pid: int, metadata: dict = None) -> pd.D
     hr_data_dict = {'time_grid': time_grid, 'timeseries': hr_timeseries}
     hrv_data_dict = {'type': 'ibi', 'ts': ibi_ts, 'values': ibi_vals, 'unit': 'ms'} if ibi_ts is not None else None
 
-    # LOCAL AGGREGATION: 30-second windows
-    # K-emoCon annotations are every 5s -> 6 annotations per window.
-    # 30s = minimum for stable HRV metrics (Task Force ESC 1996).
-    # Using np.searchsorted instead of boolean masks (O(log n) vs O(n))
+    # LOCAL AGGREGATION: Dual-resolution windows
     ANNOT_STEP = ANNOT_STEP_SEC  # seconds between annotations
 
     results = []
     n_annotations = len(ann_seconds)
-    n_windows = n_annotations // ANNOTS_PER_WINDOW
 
-    for wi in range(n_windows):
-        # Indeksy adnotacji dla tego okna
-        idx_start = wi * ANNOTS_PER_WINDOW
-        idx_end = idx_start + ANNOTS_PER_WINDOW
+    # --- LOOP 1: FAST WINDOWS ---
+    n_windows_fast = n_annotations // ANNOTS_PER_FAST_WINDOW
+    for wi in range(n_windows_fast):
+        idx_start = wi * ANNOTS_PER_FAST_WINDOW
+        idx_end = idx_start + ANNOTS_PER_FAST_WINDOW
 
-        # Uśrednij arousal/valence z 6 adnotacji
         window_seconds_end = ann_seconds[idx_end - 1]
         window_seconds_start = ann_seconds[idx_start] - ANNOT_STEP
+        
         arousal = float(np.nanmean(ann_arousal[idx_start:idx_end]))
         valence = float(np.nanmean(ann_valence[idx_start:idx_end]))
-
-        # Okno czasowe w ms
+        
         window_start_ms = start_ts + window_seconds_start * 1000
         window_end_ms = start_ts + window_seconds_end * 1000
 
         record = {
             'seconds': window_seconds_end,
             'arousal': arousal,
-            'valence': valence
+            'valence': valence,
+            'window_type': 'fast'
         }
 
-
-
-        # Ekstrakcja cech ze współdzielonego modułu
         features = extract_window_features(
             window_start_ms, window_end_ms,
             eda_data=eda_data_dict,
             bvp_data=bvp_data_dict,
-            temp_data=temp_data_dict,
+            temp_data=None,
             acc_data=acc_data_dict,
             hr_data=hr_data_dict,
+            hrv_data=None
+        )
+        record.update(features)
+        
+        record['temp_mean'] = np.nan
+        record['temp_slope'] = np.nan
+        
+        results.append(record)
+
+    # --- LOOP 2: SLOW WINDOWS ---
+    n_windows_slow = n_annotations // ANNOTS_PER_SLOW_WINDOW
+    for wi in range(n_windows_slow):
+        idx_start = wi * ANNOTS_PER_SLOW_WINDOW
+        idx_end = idx_start + ANNOTS_PER_SLOW_WINDOW
+
+        window_seconds_end = ann_seconds[idx_end - 1]
+        window_seconds_start = ann_seconds[idx_start] - ANNOT_STEP
+        
+        window_start_ms = start_ts + window_seconds_start * 1000
+        window_end_ms = start_ts + window_seconds_end * 1000
+
+        record = {
+            'seconds': window_seconds_end,
+            'arousal': np.nan,
+            'valence': np.nan,
+            'window_type': 'slow'
+        }
+
+        features = extract_window_features(
+            window_start_ms, window_end_ms,
+            eda_data=None,
+            bvp_data=None,
+            temp_data=temp_data_dict,
+            acc_data=None,
+            hr_data=None,
             hrv_data=hrv_data_dict
         )
         record.update(features)
 
         results.append(record)
 
-        if (wi + 1) % 20 == 0:
-            print(f"    Okno {wi+1}/{n_windows}", flush=True)
-
     if not results:
         return None
 
     df = pd.DataFrame(results)
+    df = df.sort_values('seconds').reset_index(drop=True)
 
     if metadata:
         df['gender'] = metadata.get('gender', 'Unknown')

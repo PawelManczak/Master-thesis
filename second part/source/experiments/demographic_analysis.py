@@ -40,7 +40,6 @@ MINCONF = 0.20
 MAXGAP = 30
 MAX_PATTERN_SIZE = 2
 
-# Data paths
 DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
 PROCESSED_DIRS = {
     'CASE': PROJECT_DIR / "data" / "CASE" / "processed",

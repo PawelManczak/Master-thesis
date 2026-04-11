@@ -24,7 +24,7 @@ from bvp_utils import _empty_hrv_result
 # Import demographics and windowing utilities
 from demographics_utils import get_age_group
 from windowing_utils import extract_window_features
-from config import WINDOW_SEC, FS_EDA, FS_TEMP, FS_BVP, FS_ACC
+from config import WINDOW_FAST_SEC, WINDOW_SLOW_SEC, FS_EDA, FS_TEMP, FS_BVP, FS_ACC
 
 # --- PATHS ---
 BASE_DIR = Path(__file__).parent.parent.parent.parent.parent
@@ -34,7 +34,7 @@ SENSORS_DIR = DATA_DIR / "CSV" / "SENSORS_csv"
 LABELS_DIR = DATA_DIR / "CSV" / "LABEL_csv"
 
 # --- CONSTANTS (defined in utils/config.py) ---
-# FS_EDA=4Hz, FS_TEMP=4Hz, FS_BVP=64Hz, FS_ACC=32Hz, WINDOW_SEC=30
+# FS_EDA=4Hz, FS_TEMP=4Hz, FS_BVP=64Hz, FS_ACC=32Hz, WINDOW_FAST_SEC=5, WINDOW_SLOW_SEC=30
 
 
 def load_csv_data(filepath, columns=None):
@@ -238,52 +238,80 @@ def process_participant_condition(pid, condition):
     hr_data_dict = {'time_grid': time_grid, 'timeseries': hr_timeseries}
     hrv_data_dict = {'type': 'ibi', 'ts': ibi_ts_arr, 'values': ibi_vals_arr, 'unit': 's'} if ibi_ts_arr is not None else None
 
-    # 30-second windows (non-overlapping)
     duration_ms = global_end - global_start
-    n_windows = int(duration_ms // (WINDOW_SEC * 1000))
-
     results = []
 
-    for i in range(n_windows):
-        window_start_ms = global_start + i * WINDOW_SEC * 1000
-        window_end_ms = window_start_ms + WINDOW_SEC * 1000
-
-        # Center time in seconds (for saving) - use end time as in K-emoCon
+    # --- LOOP 1: FAST WINDOWS (EDA, HR, ACC, Emotions) ---
+    n_windows_fast = int(duration_ms // (WINDOW_FAST_SEC * 1000))
+    for i in range(n_windows_fast):
+        window_start_ms = global_start + i * WINDOW_FAST_SEC * 1000
+        window_end_ms = window_start_ms + WINDOW_FAST_SEC * 1000
         window_time_sec = window_end_ms / 1000.0
 
-        # Create record
         record = {
             'pid': pid,
             'condition': condition,
-            'seconds': window_time_sec, # Unix timestamp in seconds
-            'window_idx': i
+            'seconds': window_time_sec,
+            'window_idx': i,
+            'window_type': 'fast'
         }
 
-        # Arousal & Valence (Average)
+        # Emotions (only mapped to fast windows)
         mask_arousal = (arousal_ts >= window_start_ms) & (arousal_ts < window_end_ms)
         mask_valence = (valence_ts >= window_start_ms) & (valence_ts < window_end_ms)
+        record['arousal'] = df_arousal.loc[mask_arousal, 'arousal'].mean()
+        record['valence'] = df_valence.loc[mask_valence, 'valence'].mean()
 
-        val_arousal = df_arousal.loc[mask_arousal, 'arousal'].mean()
-        val_valence = df_valence.loc[mask_valence, 'valence'].mean()
-
-        record['arousal'] = val_arousal
-        record['valence'] = val_valence
-
-        # Feature extraction
+        # Fast features
         features = extract_window_features(
             window_start_ms, window_end_ms,
             eda_data=eda_data_dict,
-            bvp_data=bvp_data_dict,
-            temp_data=temp_data_dict,
+            bvp_data=bvp_data_dict, 
+            temp_data=None,         # Explicitly skip slow
             hr_data=hr_data_dict,
-            hrv_data=hrv_data_dict
+            hrv_data=None           # Explicitly skip slow
         )
         record.update(features)
-
-        # Fill missing keys with NaNs if any check failed (simplified for now, assuming pandas handles missing cols)
+        
+        # Ensure temp isn't leaked (extract_window returns nans anyway but safety)
         results.append(record)
 
-    return pd.DataFrame(results)
+    # --- LOOP 2: SLOW WINDOWS (HRV, TEMP) ---
+    n_windows_slow = int(duration_ms // (WINDOW_SLOW_SEC * 1000))
+    for i in range(n_windows_slow):
+        window_start_ms = global_start + i * WINDOW_SLOW_SEC * 1000
+        window_end_ms = window_start_ms + WINDOW_SLOW_SEC * 1000
+        window_time_sec = window_end_ms / 1000.0
+
+        record = {
+            'pid': pid,
+            'condition': condition,
+            'seconds': window_time_sec,
+            'window_idx': i,
+            'window_type': 'slow',
+            'arousal': np.nan,  # Skip emotions in slow windows to avoid 30s-long generic emotional states overlapping incorrectly
+            'valence': np.nan
+        }
+
+        # Slow features
+        features = extract_window_features(
+            window_start_ms, window_end_ms,
+            eda_data=None,          # Explicitly skip fast
+            bvp_data=None,          # Explicitly skip fast
+            temp_data=temp_data_dict, # Process TEMP
+            hr_data=None,           # Process HR fast only
+            hrv_data=hrv_data_dict    # Process HRV
+        )
+        record.update(features)
+        results.append(record)
+
+    if not results:
+        return None
+
+    # Sort results chronologically
+    df_results = pd.DataFrame(results)
+    df_results = df_results.sort_values('seconds').reset_index(drop=True)
+    return df_results
 
 
 def main():

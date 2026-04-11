@@ -16,9 +16,11 @@ IBI validity:
 # =============================================================================
 # WINDOWING
 # =============================================================================
-WINDOW_SEC = 10          # seconds per window (HRV minimum, Task Force ESC 1996)
-ANNOT_STEP_SEC = 5       # K-emoCon annotation interval (seconds)
-ANNOTS_PER_WINDOW = WINDOW_SEC // ANNOT_STEP_SEC  # = 6
+WINDOW_FAST_SEC = 5       # fast signals (EDA, HR, Annotations)
+WINDOW_SLOW_SEC = 30      # slow signals (HRV, TEMP minimum, Task Force ESC 1996)
+ANNOT_STEP_SEC = 5        # K-emoCon annotation interval (seconds)
+ANNOTS_PER_FAST_WINDOW = WINDOW_FAST_SEC // ANNOT_STEP_SEC  # = 1
+ANNOTS_PER_SLOW_WINDOW = WINDOW_SLOW_SEC // ANNOT_STEP_SEC  # = 6
 
 # =============================================================================
 # EMPATICA E4 SAMPLING FREQUENCIES

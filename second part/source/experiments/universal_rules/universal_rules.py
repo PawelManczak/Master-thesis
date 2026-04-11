@@ -27,8 +27,8 @@ sys.path.insert(0, str(EXPERIMENTS_DIR))
 # EXPERIMENT PARAMETERS
 # ============================================================================
 MINSUP = 0.1       # 30% minimum support
-MINCONF = 0.1      # 50% minimum confidence
-MAXGAP = 20       # 10s max gap
+MINCONF = 0.5      # 50% minimum confidence
+MAXGAP = 5       # 10s max gap
 MAX_PATTERN_SIZE = 2  # max depth 3
 
 # ============================================================================
