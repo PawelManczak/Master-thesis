@@ -34,9 +34,7 @@ MAXGAP = 5
 
 FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True
-# Only rules mapping physio -> emotion (multimodality)
 FILTER_PHYSIO_CROSS = True
-# Don't filter single feature, because we specifically WANT size=2,3,4 rules!
 FILTER_SINGLE_FEATURE = True
 
 DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
