@@ -18,6 +18,9 @@ Rather than pooling datasets together, this script preserves the laboratory cont
 It then looks for rules that are so fundamental to a specific demographic that they appear as "Universal" independently across all 4 isolated datasets. 
 This strictly tests physiological generalization, aiming to find absolute true-positive physiological behaviors inherent to "Men", "Women", "Young", or "Old", undeterred by environmental or situational factors.
 
+## Architecture Overview
+
+![Architecture Diagram](./demographic_diagram.png)
 
 ### Datasets & Annotations
 - **Datasets:** CASE, K-emoCon, CEAP, EmoWorker

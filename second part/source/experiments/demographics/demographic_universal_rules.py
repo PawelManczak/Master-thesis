@@ -23,8 +23,8 @@ sys.path.insert(0, str(EXPERIMENTS_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
 MINSUP = 0.1       # 10% minimum support
-MINCONF = 0.1      # 10% minimum confidence
-MAXGAP = 20
+MINCONF = 0.5      # 50% minimum confidence
+MAXGAP = 5
 MAX_PATTERN_SIZE = 2
 
 FILTER_BVP_ONLY = True
