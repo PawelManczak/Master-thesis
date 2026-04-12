@@ -14,11 +14,12 @@ import pandas as pd
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-SCRIPT_DIR = Path(__file__).parent
-PROJECT_DIR = SCRIPT_DIR.parent.parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+EXPERIMENTS_DIR = SCRIPT_DIR.parent
+PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
-sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(EXPERIMENTS_DIR))
 
 from experiment_utils import (
     run_armada_on_df,

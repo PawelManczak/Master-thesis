@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
 """
-Generate a heatmap comparing the intersection of three datasets with remaining datasets.
+Generate a heatmap comparing the intersection of two datasets with a third distinct dataset.
 Uses RQ1 parameters (minsup=0.5, minconf=0.5, maxgap=5s).
-
-Matrix: 20 rows (all unique triplets from 6 datasets) x 6 columns (individual datasets).
-Cell value = len(A & B & C & D) where (A,B,C) is the row triplet and D is the column dataset.
-Grey cells mark when D is already part of the triplet.
 """
 
 import sys
@@ -19,10 +15,12 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import itertools
 
-SCRIPT_DIR = Path(__file__).parent
-PROJECT_DIR = SCRIPT_DIR.parent.parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+EXPERIMENTS_DIR = SCRIPT_DIR.parent
+PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
+sys.path.insert(0, str(EXPERIMENTS_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from experiment_utils import (
@@ -49,7 +47,7 @@ DATASETS = {
     "K-emoCon": DATA_DIR / "armada_k_emocon.csv",
     "CEAP": DATA_DIR / "armada_ceap.csv",
     "EmoWorker": DATA_DIR / "armada_emoworker_v2.csv",
-    "K-emo (ext)": DATA_DIR / "armada_k_emocon_ext.csv",
+    "K-emo\n(ext)": DATA_DIR / "armada_k_emocon_ext.csv",
     "EMBOA": DATA_DIR / "armada_emboa.csv",
 }
 
@@ -57,16 +55,11 @@ OUTPUT_DIR = Path(__file__).parent / "results"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _clean(name):
-    """Remove newlines from dataset name for display."""
-    return name.replace('\n', ' ')
-
-
 def main():
     # Mine rules for each dataset
     results = {}
     for name, path in DATASETS.items():
-        print(f"Processing {_clean(name)}...")
+        print(f"Processing {name}...")
         df = pd.read_csv(path)
         armada, patterns, rules = run_armada_on_df(df, MINSUP, MINCONF, MAXGAP, MAX_PATTERN_SIZE)
 
@@ -74,48 +67,43 @@ def main():
         filtered = filter_rules(raw_sigs, FILTER_BVP_ONLY, FILTER_EDA_ONLY,
                                 FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
         results[name] = filtered
-        print(f"  {_clean(name)}: {len(filtered)} filtered rules")
+        print(f"  {name}: {len(filtered)} filtered rules")
 
     names = list(results.keys())
 
-    # Generate all triplets (C(6,3) = 20)
-    triplets = list(itertools.combinations(names, 3))
-    n_rows = len(triplets)
+    # Generate all pairs
+    pairs = list(itertools.combinations(names, 2))
+    n_rows = len(pairs)
     n_cols = len(names)
 
-    print(f"\nTotal triplets: {n_rows}")
-
-    # Build triplet intersection matrix
+    # Build pairs intersection matrix
     matrix = np.zeros((n_rows, n_cols), dtype=int)
-    for i, (ds1, ds2, ds3) in enumerate(triplets):
-        shared_triplet = results[ds1] & results[ds2] & results[ds3]
+    for i, (ds1, ds2) in enumerate(pairs):
+        shared_pair = results[ds1] & results[ds2]
         for j, target_ds in enumerate(names):
-            matrix[i][j] = len(shared_triplet & results[target_ds])
+            # Intersection of pair with target dataset
+            matrix[i][j] = len(shared_pair & results[target_ds])
 
     # Create heatmap
-    fig, ax = plt.subplots(figsize=(8, 12))
+    fig, ax = plt.subplots(figsize=(8, 10))
 
     cmap = plt.cm.YlOrRd
     off_diag = matrix.copy().astype(float)
 
-    # Mask when the column dataset is part of the row triplet
-    for i, tri in enumerate(triplets):
+    # Mask exactly when the column dataset is PART of the row pair
+    for i, (ds1, ds2) in enumerate(pairs):
         for j, target_ds in enumerate(names):
-            if target_ds in tri:
+            if target_ds in (ds1, ds2):
                 off_diag[i][j] = np.nan
 
-    # Determine vmax from non-self cells
-    valid_max = np.nanmax(off_diag) if not np.all(np.isnan(off_diag)) else 1
-    if valid_max == 0:
-        valid_max = 1
-
     # Plot off-diagonal with color map
-    im = ax.imshow(off_diag, cmap=cmap, aspect='auto', vmin=0, vmax=valid_max)
+    im = ax.imshow(off_diag, cmap=cmap, aspect='auto',
+                   vmin=0, vmax=np.nanmax(off_diag) if np.nanmax(off_diag) > 0 else 1)
 
-    # Plot triplet-member cells with grey
-    for i, tri in enumerate(triplets):
+    # Plot pair components with grey color
+    for i, (ds1, ds2) in enumerate(pairs):
         for j, target_ds in enumerate(names):
-            if target_ds in tri:
+            if target_ds in (ds1, ds2):
                 ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1,
                                            fill=True, color='#e0e0e0', zorder=2))
 
@@ -124,13 +112,13 @@ def main():
         for j in range(n_cols):
             val = matrix[i][j]
             target_ds = names[j]
-            tri = triplets[i]
-            if target_ds in tri:
+            ds1, ds2 = pairs[i]
+            if target_ds in (ds1, ds2):
                 text_color = '#333333'
                 fontweight = 'bold'
-                fontsize = 10
+                fontsize = 11
             else:
-                norm_val = val / valid_max
+                norm_val = val / max(np.nanmax(off_diag) if not np.isnan(np.nanmax(off_diag)) else 1, 1)
                 text_color = 'white' if norm_val > 0.6 else 'black'
                 fontweight = 'normal'
                 fontsize = 10
@@ -139,24 +127,23 @@ def main():
                     zorder=3)
 
     # Labels
-    row_labels = [_clean(t[0]) + ' + ' + _clean(t[1]) + ' + ' + _clean(t[2]) for t in triplets]
+    row_labels = [p[0].replace('\n', ' ') + ' + ' + p[1].replace('\n', ' ') for p in pairs]
     ax.set_yticks(range(n_rows))
-    ax.set_yticklabels(row_labels, fontsize=8, va='center')
+    ax.set_yticklabels(row_labels, fontsize=10, va='center')
 
-    col_labels = [_clean(n) for n in names]
+    col_labels = [n.replace('\n', ' ') for n in names]
     ax.set_xticks(range(n_cols))
     ax.set_xticklabels(col_labels, fontsize=10, ha='right', rotation=45)
 
-    ax.set_xlabel('Fourth Dataset')
-    ax.set_ylabel('Intersected Dataset Triplets')
+    ax.set_xlabel('Third Dataset')
+    ax.set_ylabel('Intersected Dataset Pairs')
 
     # Colorbar
     cbar = plt.colorbar(im, ax=ax, pad=0.02)
-    cbar.set_label('Shared rules (Quadruple Intersection)', fontsize=10)
+    cbar.set_label('Shared rules (Triple Intersection)', fontsize=10)
 
     # Title
-    ax.set_title('Generalization of Triplet Shared Rules\nto Fourth Datasets',
-                 fontsize=12, fontweight='bold', pad=15)
+    ax.set_title('Generalization of Pairwise Shared Rules to Third Datasets', fontsize=12, fontweight='bold', pad=15)
 
     # Border
     for spine in ax.spines.values():
@@ -165,32 +152,25 @@ def main():
 
     plt.tight_layout()
 
-    out_png = OUTPUT_DIR / "heatmap_triplets_generalization.png"
+    out_png = OUTPUT_DIR / "heatmap_pairs_generalization.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
-    print(f"\nSaved PNG to {out_png}")
+    print(f"Saved PNG to {out_png}")
 
-    # Print triplet base intersections
-    print("\nTriplet Base Intersections (rules shared by all 3):")
-    for i, (ds1, ds2, ds3) in enumerate(triplets):
-        shared = results[ds1] & results[ds2] & results[ds3]
-        label = _clean(ds1) + ' + ' + _clean(ds2) + ' + ' + _clean(ds3)
-        print(f"  {label}: {len(shared)} rules")
-
-    # Top quadruplet generalizations
-    print("\nTop 5 Generalizing Quadruplets:")
-    quads = []
-    for i, (ds1, ds2, ds3) in enumerate(triplets):
+    # Print the top triplets for the report
+    print("\nTop 5 Generalizing Triplets:")
+    triplets = []
+    for i, (ds1, ds2) in enumerate(pairs):
         for j, target_ds in enumerate(names):
-            if target_ds not in (ds1, ds2, ds3):
-                quads.append({
-                    'triplet': _clean(ds1) + ' + ' + _clean(ds2) + ' + ' + _clean(ds3),
-                    'target': _clean(target_ds),
+            if target_ds not in (ds1, ds2):
+                triplets.append({
+                    'pair': ds1.replace('\n', ' ') + ' + ' + ds2.replace('\n', ' '),
+                    'target': target_ds.replace('\n', ' '),
                     'rules': matrix[i][j]
                 })
 
-    quad_df = pd.DataFrame(quads)
-    quad_df = quad_df.sort_values(by='rules', ascending=False).head(5)
-    print(quad_df.to_string(index=False))
+    triplet_df = pd.DataFrame(triplets)
+    triplet_df = triplet_df.sort_values(by='rules', ascending=False).head(5)
+    print(triplet_df.to_string(index=False))
 
 
 if __name__ == "__main__":

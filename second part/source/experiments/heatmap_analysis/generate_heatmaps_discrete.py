@@ -18,10 +18,12 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import itertools
 
-SCRIPT_DIR = Path(__file__).parent
-PROJECT_DIR = SCRIPT_DIR.parent.parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+EXPERIMENTS_DIR = SCRIPT_DIR.parent
+PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
+sys.path.insert(0, str(EXPERIMENTS_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from experiment_utils import (
@@ -41,7 +43,9 @@ FILTER_EDA_ONLY = True
 FILTER_PHYSIO_CROSS = True
 FILTER_SINGLE_FEATURE = True
 
-DISCRETE_DIR = SCRIPT_DIR / "emotion_labels" / "results"
+DISCRETE_DIR = EXPERIMENTS_DIR / "emotion_labels" / "results"
+
+DISCRETE_DIR = EXPERIMENTS_DIR / "emotion_labels" / "results"
 
 DATASETS = {
     "CASE": DISCRETE_DIR / "armada_discrete_CASE.csv",

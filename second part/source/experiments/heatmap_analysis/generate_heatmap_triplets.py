@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Generate a heatmap comparing the intersection of five datasets with the remaining sixth.
+Generate a heatmap comparing the intersection of three datasets with remaining datasets.
 Uses RQ1 parameters (minsup=0.5, minconf=0.5, maxgap=5s).
 
-Matrix: 6 rows (all unique quintuplets from 6 datasets) x 6 columns (individual datasets).
-Cell value = len(A & B & C & D & E & F) where (A,B,C,D,E) is the row quintuplet and F is the column.
-Grey cells mark when F is already part of the quintuplet.
+Matrix: 20 rows (all unique triplets from 6 datasets) x 6 columns (individual datasets).
+Cell value = len(A & B & C & D) where (A,B,C) is the row triplet and D is the column dataset.
+Grey cells mark when D is already part of the triplet.
 """
 
 import sys
@@ -19,10 +19,12 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import itertools
 
-SCRIPT_DIR = Path(__file__).parent
-PROJECT_DIR = SCRIPT_DIR.parent.parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+EXPERIMENTS_DIR = SCRIPT_DIR.parent
+PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
+sys.path.insert(0, str(EXPERIMENTS_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from experiment_utils import (
@@ -58,6 +60,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _clean(name):
+    """Remove newlines from dataset name for display."""
     return name.replace('\n', ' ')
 
 
@@ -77,116 +80,119 @@ def main():
 
     names = list(results.keys())
 
-    # Generate all quintuplets (C(6,5) = 6)
-    quints = list(itertools.combinations(names, 5))
-    n_rows = len(quints)
+    # Generate all triplets (C(6,3) = 20)
+    triplets = list(itertools.combinations(names, 3))
+    n_rows = len(triplets)
     n_cols = len(names)
 
-    print(f"\nTotal quintuplets: {n_rows}")
+    print(f"\nTotal triplets: {n_rows}")
 
-    # Build quintuplet intersection matrix
+    # Build triplet intersection matrix
     matrix = np.zeros((n_rows, n_cols), dtype=int)
-    for i, quin in enumerate(quints):
-        shared = results[quin[0]]
-        for ds in quin[1:]:
-            shared = shared & results[ds]
+    for i, (ds1, ds2, ds3) in enumerate(triplets):
+        shared_triplet = results[ds1] & results[ds2] & results[ds3]
         for j, target_ds in enumerate(names):
-            matrix[i][j] = len(shared & results[target_ds])
+            matrix[i][j] = len(shared_triplet & results[target_ds])
 
     # Create heatmap
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(8, 12))
 
     cmap = plt.cm.YlOrRd
     off_diag = matrix.copy().astype(float)
 
-    # Mask when the column dataset is part of the row quintuplet
-    for i, quin in enumerate(quints):
+    # Mask when the column dataset is part of the row triplet
+    for i, tri in enumerate(triplets):
         for j, target_ds in enumerate(names):
-            if target_ds in quin:
+            if target_ds in tri:
                 off_diag[i][j] = np.nan
 
+    # Determine vmax from non-self cells
     valid_max = np.nanmax(off_diag) if not np.all(np.isnan(off_diag)) else 1
     if valid_max == 0:
         valid_max = 1
 
+    # Plot off-diagonal with color map
     im = ax.imshow(off_diag, cmap=cmap, aspect='auto', vmin=0, vmax=valid_max)
 
-    # Grey out quintuplet-member cells
-    for i, quin in enumerate(quints):
+    # Plot triplet-member cells with grey
+    for i, tri in enumerate(triplets):
         for j, target_ds in enumerate(names):
-            if target_ds in quin:
+            if target_ds in tri:
                 ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1,
                                            fill=True, color='#e0e0e0', zorder=2))
 
+    # Add text annotations
     for i in range(n_rows):
         for j in range(n_cols):
             val = matrix[i][j]
             target_ds = names[j]
-            quin = quints[i]
-            if target_ds in quin:
+            tri = triplets[i]
+            if target_ds in tri:
                 text_color = '#333333'
                 fontweight = 'bold'
-                fontsize = 11
+                fontsize = 10
             else:
                 norm_val = val / valid_max
                 text_color = 'white' if norm_val > 0.6 else 'black'
                 fontweight = 'normal'
-                fontsize = 11
+                fontsize = 10
             ax.text(j, i, str(val), ha='center', va='center',
                     color=text_color, fontweight=fontweight, fontsize=fontsize,
                     zorder=3)
 
-    # Labels — show the ONE excluded dataset for readability
-    row_labels = []
-    for quin in quints:
-        excluded = [n for n in names if n not in quin]
-        row_labels.append('All except ' + _clean(excluded[0]))
+    # Labels
+    row_labels = [_clean(t[0]) + ' + ' + _clean(t[1]) + ' + ' + _clean(t[2]) for t in triplets]
     ax.set_yticks(range(n_rows))
-    ax.set_yticklabels(row_labels, fontsize=10, va='center')
+    ax.set_yticklabels(row_labels, fontsize=8, va='center')
 
     col_labels = [_clean(n) for n in names]
     ax.set_xticks(range(n_cols))
     ax.set_xticklabels(col_labels, fontsize=10, ha='right', rotation=45)
 
-    ax.set_xlabel('Sixth Dataset (Leave-One-Out Target)')
-    ax.set_ylabel('Quintuplet (5 Intersected Datasets)')
+    ax.set_xlabel('Fourth Dataset')
+    ax.set_ylabel('Intersected Dataset Triplets')
 
+    # Colorbar
     cbar = plt.colorbar(im, ax=ax, pad=0.02)
-    cbar.set_label('Shared rules (Full 6-way Intersection)', fontsize=10)
+    cbar.set_label('Shared rules (Quadruple Intersection)', fontsize=10)
 
-    ax.set_title('Leave-One-Out: Quintuplet Rules Generalization',
+    # Title
+    ax.set_title('Generalization of Triplet Shared Rules\nto Fourth Datasets',
                  fontsize=12, fontweight='bold', pad=15)
 
+    # Border
     for spine in ax.spines.values():
         spine.set_visible(True)
         spine.set_color('#cccccc')
 
     plt.tight_layout()
 
-    out_png = OUTPUT_DIR / "heatmap_quintuplets_generalization.png"
+    out_png = OUTPUT_DIR / "heatmap_triplets_generalization.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     print(f"\nSaved PNG to {out_png}")
 
-    print("\nQuintuplet Base Intersections (rules shared by all 5):")
-    for i, quin in enumerate(quints):
-        shared = results[quin[0]]
-        for ds in quin[1:]:
-            shared = shared & results[ds]
-        excluded = [n for n in names if n not in quin]
-        label = 'All except ' + _clean(excluded[0])
+    # Print triplet base intersections
+    print("\nTriplet Base Intersections (rules shared by all 3):")
+    for i, (ds1, ds2, ds3) in enumerate(triplets):
+        shared = results[ds1] & results[ds2] & results[ds3]
+        label = _clean(ds1) + ' + ' + _clean(ds2) + ' + ' + _clean(ds3)
         print(f"  {label}: {len(shared)} rules")
 
-    # Leave-one-out results
-    print("\nLeave-One-Out Full 6-way Intersection:")
-    for i, quin in enumerate(quints):
-        excluded = [n for n in names if n not in quin]
-        target = excluded[0]
-        shared = results[quin[0]]
-        for ds in quin[1:]:
-            shared = shared & results[ds]
-        full_six = len(shared & results[target])
-        label = 'All except ' + _clean(target)
-        print(f"  {label} => add {_clean(target)}: {full_six} rules survive as universal 6-way")
+    # Top quadruplet generalizations
+    print("\nTop 5 Generalizing Quadruplets:")
+    quads = []
+    for i, (ds1, ds2, ds3) in enumerate(triplets):
+        for j, target_ds in enumerate(names):
+            if target_ds not in (ds1, ds2, ds3):
+                quads.append({
+                    'triplet': _clean(ds1) + ' + ' + _clean(ds2) + ' + ' + _clean(ds3),
+                    'target': _clean(target_ds),
+                    'rules': matrix[i][j]
+                })
+
+    quad_df = pd.DataFrame(quads)
+    quad_df = quad_df.sort_values(by='rules', ascending=False).head(5)
+    print(quad_df.to_string(index=False))
 
 
 if __name__ == "__main__":
