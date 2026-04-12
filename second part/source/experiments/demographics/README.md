@@ -17,3 +17,8 @@ It then splits this aggregated data strictly by demographic criteria and analyze
 Rather than pooling datasets together, this script preserves the laboratory contexts. It operates by breaking down *each distinct dataset* by gender or age groups.
 It then looks for rules that are so fundamental to a specific demographic that they appear as "Universal" independently across all 4 isolated datasets. 
 This strictly tests physiological generalization, aiming to find absolute true-positive physiological behaviors inherent to "Men", "Women", "Young", or "Old", undeterred by environmental or situational factors.
+
+
+### Datasets & Annotations
+- **Datasets:** CASE, K-emoCon, CEAP, EmoWorker
+- **Annotations:** Self-annotations (subjective participant ratings)
