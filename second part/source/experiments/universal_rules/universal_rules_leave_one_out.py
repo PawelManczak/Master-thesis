@@ -22,9 +22,9 @@ sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 # We add experiments dir as we need experiment_utils which is there
 sys.path.insert(0, str(EXPERIMENTS_DIR))
 
-MINSUP = 0.3
+MINSUP = 0.1
 MINCONF = 0.5
-MAXGAP = 20
+MAXGAP = 5
 MAX_PATTERN_SIZE = 2
 
 # True -> reject rules where ALL states are BVP/HRV/HR-related
@@ -121,125 +121,153 @@ def generate_markdown_report(
 
 def main():
     DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
-    OUTPUT_DIR = SCRIPT_DIR / "results"
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    BASE_OUTPUT_DIR = SCRIPT_DIR / "results"
 
     print("=" * 80)
-    print("EXPERIMENT: LEAVE-ONE-OUT UNIVERSAL RULES DETECTION")
+    print("EXPERIMENT: LEAVE-ONE-OUT UNIVERSAL RULES")
     print("=" * 80)
     print(f"Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
-    print(f"Results directory: {OUTPUT_DIR}")
     print()
 
-    datasets = {
+    self_datasets = {
         'CASE': DATA_DIR / "armada_case.csv",
         'K-emoCon': DATA_DIR / "armada_k_emocon.csv",
         'CEAP': DATA_DIR / "armada_ceap.csv",
         'EmoWorker_v2': DATA_DIR / "armada_emoworker_v2.csv"
     }
 
-    for ds_name, data_file in datasets.items():
-        if not data_file.exists():
-            print(f"ERROR: Dataset file {data_file} does not exist!")
-            print("Have you regenerated the armada CSVs after multi-resolution update?")
-            sys.exit(1)
+    external_datasets = {
+        'K-emo_ext': DATA_DIR / "armada_k_emocon_ext.csv",
+        'EMBOA': DATA_DIR / "armada_emboa.csv"
+    }
 
-    all_results = {}
-    rules_signatures = {}
+    combined_datasets = {**self_datasets, **external_datasets}
 
-    for ds_name, data_file in datasets.items():
-        print(f"\n{'=' * 60}")
-        print(f"Processing Dataset: {ds_name}")
-        print(f"{'=' * 60}")
+    experiment_scenarios = {
+        'self': self_datasets,
+        'external': external_datasets,
+        'external_self': combined_datasets
+    }
 
-        armada, patterns, rules = run_armada_on_dataset(data_file)
-        all_results[ds_name] = (armada, patterns, rules)
+    for scenario_name, datasets in experiment_scenarios.items():
+        print(f"\n" + "#"*80)
+        print(f"RUNNING SCENARIO: {scenario_name.upper()}")
+        print(f"#"*80)
 
-        raw_signatures = extract_rule_signatures(rules)
-        filtered_signatures = filter_rules(
-            raw_signatures,
-            FILTER_BVP_ONLY,
-            FILTER_EDA_ONLY,
-            FILTER_PHYSIO_CROSS,
-            FILTER_SINGLE_FEATURE
-        )
+        OUTPUT_DIR = BASE_OUTPUT_DIR / scenario_name
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-        rules_signatures[ds_name] = set(filtered_signatures)
+        valid_datasets = {}
+        for ds_name, data_file in datasets.items():
+            if not data_file.exists():
+                print(f"WARNING: Dataset file {data_file} does not exist, skipping...")
+            else:
+                valid_datasets[ds_name] = data_file
 
-        print(f"  Total Rules: {len(rules)}")
-        print(f"  Rules after filtering: {len(filtered_signatures)}")
+        if len(valid_datasets) < 2:
+            print(f"Not enough valid datasets for {scenario_name}. Skipping.")
+            continue
 
-    print("\n" + "=" * 80)
-    print("CALCULATING LEAVE-ONE-OUT INTERSECTION")
-    print("=" * 80)
+        datasets = valid_datasets
 
-    dataset_names = set(datasets.keys())
-    all_unique_rules = set()
-    for rules in rules_signatures.values():
-        all_unique_rules.update(rules)
+        all_results = {}
+        rules_signatures = {}
 
-    leave_one_out_rules = []
+        for ds_name, data_file in datasets.items():
+            print(f"\n{'=' * 60}")
+            print(f"Processing Dataset: {ds_name}")
+            print(f"{'=' * 60}")
 
-    sig_to_rule_map = {}
-    for ds_name, (armada, patterns, rules_obj) in all_results.items():
-        sig_map = {}
-        for r in rules_obj:
-            sig = f"{r.antecedent.get_relation_description()} => {r.consequent.get_relation_description()}"
-            sig_map[sig] = r
-        sig_to_rule_map[ds_name] = sig_map
+            armada, patterns, rules = run_armada_on_dataset(data_file)
+            all_results[ds_name] = (armada, patterns, rules)
 
-    for rule in all_unique_rules:
-        present_in = {ds for ds, rules in rules_signatures.items() if rule in rules}
+            raw_signatures = extract_rule_signatures(rules)
+            filtered_signatures = filter_rules(
+                raw_signatures,
+                FILTER_BVP_ONLY,
+                FILTER_EDA_ONLY,
+                FILTER_PHYSIO_CROSS,
+                FILTER_SINGLE_FEATURE
+            )
 
-        if len(present_in) == 3:
-            missing_ds = (dataset_names - present_in).pop()
+            rules_signatures[ds_name] = set(filtered_signatures)
 
-            confidences = []
-            supports = []
+            print(f"  Total Rules: {len(rules)}")
+            print(f"  Rules after filtering: {len(filtered_signatures)}")
 
-            for ds in present_in:
-                r_match = sig_to_rule_map[ds].get(rule)
-                if r_match:
-                    confidences.append(r_match.confidence)
-                    supports.append(r_match.support)
-                else:
-                    print(f"WARNING: Rule {rule} not found in {ds} objects despite signature match!")
+        print("\n" + "=" * 80)
+        print(f"CALCULATING LEAVE-ONE-OUT INTERSECTION FOR {scenario_name.upper()}")
+        print("=" * 80)
 
-            avg_conf = sum(confidences) / len(confidences) if confidences else 0
-            avg_sup = sum(supports) / len(supports) if supports else 0
+        dataset_names = set(datasets.keys())
+        all_unique_rules = set()
+        for rules in rules_signatures.values():
+            all_unique_rules.update(rules)
 
-            leave_one_out_rules.append({
-                'rule': rule,
-                'missing_dataset': missing_ds,
-                'present_in': ", ".join(present_in),
-                'avg_confidence': round(avg_conf, 4),
-                'avg_support': round(avg_sup, 4)
-            })
+        leave_one_out_rules = []
 
-    df_loo = pd.DataFrame(leave_one_out_rules)
-    if len(df_loo) > 0:
-        df_loo = df_loo.sort_values(['missing_dataset', 'avg_confidence'], ascending=[True, False])
-        output_csv = OUTPUT_DIR / "leave_one_out_rules.csv"
-        df_loo.to_csv(output_csv, index=False)
-        print(f"\nFound {len(df_loo)} rules present in exactly 3 datasets.")
-        print(f"Saved details to: {output_csv}")
+        sig_to_rule_map = {}
+        for ds_name, (armada, patterns, rules_obj) in all_results.items():
+            sig_map = {}
+            for r in rules_obj:
+                sig = f"{r.antecedent.get_relation_description()} => {r.consequent.get_relation_description()}"
+                sig_map[sig] = r
+            sig_to_rule_map[ds_name] = sig_map
 
-        generate_markdown_report(df_loo, len(datasets), OUTPUT_DIR)
+        target_len = len(dataset_names) - 1
 
-        print("\nSummary of missing rules per dataset:")
-        missing_counts = df_loo['missing_dataset'].value_counts()
-        for ds, count in missing_counts.items():
-            print(f"  {ds} is the outlier for {count} rules")
+        for rule in all_unique_rules:
+            present_in = {ds for ds, rules in rules_signatures.items() if rule in rules}
 
-        print("\nTop almost-universal rules (sorted by avg. confidence in their 3 datasets):")
-        for ds in sorted(dataset_names):
-            ds_rules = df_loo[df_loo['missing_dataset'] == ds]
-            if len(ds_rules) > 0:
-                print(f"\n  Missing in {ds}:")
-                for _, row in ds_rules.head(3).iterrows():
-                    print(f"    - {row['rule']} (avg_conf: {row['avg_confidence']})")
-    else:
-        print("\nNo rules present in exactly 3 datasets found.")
+            if len(present_in) == target_len:
+                missing_ds = (dataset_names - present_in).pop()
+
+                confidences = []
+                supports = []
+
+                for ds in present_in:
+                    r_match = sig_to_rule_map[ds].get(rule)
+                    if r_match:
+                        confidences.append(r_match.confidence)
+                        supports.append(r_match.support)
+                    else:
+                        print(f"WARNING: Rule {rule} not found in {ds} objects despite signature match!")
+
+                avg_conf = sum(confidences) / len(confidences) if confidences else 0
+                avg_sup = sum(supports) / len(supports) if supports else 0
+
+                leave_one_out_rules.append({
+                    'rule': rule,
+                    'missing_dataset': missing_ds,
+                    'present_in': ", ".join(present_in),
+                    'avg_confidence': round(avg_conf, 4),
+                    'avg_support': round(avg_sup, 4)
+                })
+
+        df_loo = pd.DataFrame(leave_one_out_rules)
+        if len(df_loo) > 0:
+            df_loo = df_loo.sort_values(['missing_dataset', 'avg_confidence'], ascending=[True, False])
+            output_csv = OUTPUT_DIR / "leave_one_out_rules.csv"
+            df_loo.to_csv(output_csv, index=False)
+            print(f"\nFound {len(df_loo)} rules present in exactly {target_len} datasets.")
+            print(f"Saved details to: {output_csv}")
+
+            generate_markdown_report(df_loo, len(datasets), OUTPUT_DIR)
+
+            print("\nSummary of missing rules per dataset:")
+            missing_counts = df_loo['missing_dataset'].value_counts()
+            for ds, count in missing_counts.items():
+                print(f"  {ds} is the outlier for {count} rules")
+
+            print(f"\nTop almost-universal rules (sorted by avg. confidence in their {target_len} datasets):")
+            for ds in sorted(dataset_names):
+                ds_rules = df_loo[df_loo['missing_dataset'] == ds]
+                if len(ds_rules) > 0:
+                    print(f"\n  Missing in {ds}:")
+                    for _, row in ds_rules.head(3).iterrows():
+                        print(f"    - {row['rule']} (avg_conf: {row['avg_confidence']})")
+        else:
+            print(f"\nNo rules present in exactly {target_len} datasets found.")
 
     print("\n" + "=" * 80)
     print("EXPERIMENT FINISHED")

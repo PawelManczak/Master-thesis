@@ -1,0 +1,5 @@
+rule,K-emo_ext_confidence,K-emo_ext_support,K-emo_ext_count,EMBOA_confidence,EMBOA_support,EMBOA_count,avg_confidence,min_confidence,avg_support,min_support
+(eda_std_high) => eda_std_high starts valence_medium,0.9286,0.9286,26,0.8125,0.8125,13,0.8705,0.8125,0.8705,0.8125
+(arousal_high) => arousal_high meets valence_medium,0.6923,0.6429,18,0.8,0.75,12,0.7462,0.6923,0.6964,0.6429
+(eda_max_low) => eda_max_low meets valence_medium,0.7143,0.7143,20,0.6875,0.6875,11,0.7009,0.6875,0.7009,0.6875
+(valence_high) => valence_high meets eda_medium,0.5294,0.3214,9,0.75,0.75,12,0.6397,0.5294,0.5357,0.3214

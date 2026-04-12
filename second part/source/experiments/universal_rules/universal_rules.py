@@ -222,84 +222,112 @@ def generate_markdown_report(
 
 def main():
     DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
-    OUTPUT_DIR = SCRIPT_DIR / "results"
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    BASE_OUTPUT_DIR = SCRIPT_DIR / "results"
 
     print("=" * 80)
     print("EXPERIMENT: UNIVERSAL RULES DETECTION")
     print("=" * 80)
     print(f"Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
-    print(f"Results directory: {OUTPUT_DIR}")
     print()
 
-    datasets = {
+    self_datasets = {
         'CASE': DATA_DIR / "armada_case.csv",
         'K-emoCon': DATA_DIR / "armada_k_emocon.csv",
         'CEAP': DATA_DIR / "armada_ceap.csv",
         'EmoWorker_v2': DATA_DIR / "armada_emoworker_v2.csv"
     }
 
-    for ds_name, data_file in datasets.items():
-        if not data_file.exists():
-            print(f"ERROR: Dataset file {data_file} does not exist!")
-            sys.exit(1)
+    external_datasets = {
+        'K-emo_ext': DATA_DIR / "armada_k_emocon_ext.csv",
+        'EMBOA': DATA_DIR / "armada_emboa.csv"
+    }
 
-    all_results = {}
-    rules_signatures = {}
+    combined_datasets = {**self_datasets, **external_datasets}
 
-    for ds_name, data_file in datasets.items():
-        print(f"\n{'=' * 60}")
-        print(f"Processing Dataset: {ds_name}")
-        print(f"{'=' * 60}")
+    experiment_scenarios = {
+        'self': self_datasets,
+        'external': external_datasets,
+        'external_self': combined_datasets
+    }
 
-        armada, patterns, rules = run_armada_on_dataset(data_file)
-        all_results[ds_name] = (armada, patterns, rules)
+    for scenario_name, datasets in experiment_scenarios.items():
+        print(f"\n" + "#"*80)
+        print(f"RUNNING SCENARIO: {scenario_name.upper()}")
+        print(f"#"*80)
 
-        raw_signatures = extract_rule_signatures(rules)
-        filtered_signatures = filter_rules(
-            raw_signatures,
-            FILTER_BVP_ONLY,
-            FILTER_EDA_ONLY,
-            FILTER_PHYSIO_CROSS,
-            FILTER_SINGLE_FEATURE
+        OUTPUT_DIR = BASE_OUTPUT_DIR / scenario_name
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+        valid_datasets = {}
+        for ds_name, data_file in datasets.items():
+            if not data_file.exists():
+                print(f"WARNING: Dataset file {data_file} does not exist, skipping...")
+            else:
+                valid_datasets[ds_name] = data_file
+
+        if len(valid_datasets) < 2:
+            print(f"Not enough valid datasets for {scenario_name}. Skipping.")
+            continue
+
+        datasets = valid_datasets
+
+        all_results = {}
+        rules_signatures = {}
+
+        for ds_name, data_file in datasets.items():
+            print(f"\n{'=' * 60}")
+            print(f"Processing Dataset: {ds_name}")
+            print(f"{'=' * 60}")
+
+            armada, patterns, rules = run_armada_on_dataset(data_file)
+            all_results[ds_name] = (armada, patterns, rules)
+
+            raw_signatures = extract_rule_signatures(rules)
+            filtered_signatures = filter_rules(
+                raw_signatures,
+                FILTER_BVP_ONLY,
+                FILTER_EDA_ONLY,
+                FILTER_PHYSIO_CROSS,
+                FILTER_SINGLE_FEATURE
+            )
+
+            rules_signatures[ds_name] = set(filtered_signatures)
+
+            print(f"  Total Rules: {len(rules)}")
+            print(f"  Rules after filtering: {len(filtered_signatures)}")
+
+        print("\n" + "=" * 80)
+        print(f"CALCULATING UNIVERSAL RULES INTERSECTION FOR {scenario_name.upper()}")
+        print("=" * 80)
+
+        dataset_names = list(datasets.keys())
+        universal_rules = set(rules_signatures[dataset_names[0]])
+
+        for ds_name in dataset_names[1:]:
+            universal_rules &= rules_signatures[ds_name]
+
+        print(f"\nRules universal across ALL {len(dataset_names)} datasets: {len(universal_rules)}")
+
+        universal_rules_df = save_universal_rules_details(universal_rules, all_results, OUTPUT_DIR)
+
+        generate_markdown_report(
+            datasets_count=len(dataset_names),
+            all_results=all_results,
+            universal_rules=universal_rules,
+            universal_rules_df=universal_rules_df,
+            output_dir=OUTPUT_DIR
         )
 
-        rules_signatures[ds_name] = filtered_signatures
+        if len(universal_rules_df) > 0:
+            print("\nTOP UNIVERSAL RULES (sorted by avg. confidence):")
+            for _, row in universal_rules_df.head(10).iterrows():
+                print(f"  {row['rule']}")
+                print(f"    avg_conf={row.get('avg_confidence', 'N/A')}, avg_sup={row.get('avg_support', 'N/A')}")
 
-        print(f"  Total Rules: {len(rules)}")
-        print(f"  Rules after filtering: {len(filtered_signatures)}")
-
-    print("\n" + "=" * 80)
-    print("CALCULATING UNIVERSAL RULES INTERSECTION")
-    print("=" * 80)
-
-    dataset_names = list(datasets.keys())
-    universal_rules = set(rules_signatures[dataset_names[0]])
-
-    for ds_name in dataset_names[1:]:
-        universal_rules &= rules_signatures[ds_name]
-
-    print(f"\nRules universal across ALL {len(dataset_names)} datasets: {len(universal_rules)}")
-
-    universal_rules_df = save_universal_rules_details(universal_rules, all_results, OUTPUT_DIR)
-
-    generate_markdown_report(
-        datasets_count=len(dataset_names),
-        all_results=all_results,
-        universal_rules=universal_rules,
-        universal_rules_df=universal_rules_df,
-        output_dir=OUTPUT_DIR
-    )
-
-    if len(universal_rules_df) > 0:
-        print("\nTOP UNIVERSAL RULES (sorted by avg. confidence):")
-        for _, row in universal_rules_df.head(10).iterrows():
-            print(f"  {row['rule']}")
-            print(f"    avg_conf={row.get('avg_confidence', 'N/A')}, avg_sup={row.get('avg_support', 'N/A')}")
+        print(f"Results saved in: {OUTPUT_DIR}")
 
     print("\n" + "=" * 80)
-    print("EXPERIMENT FINISHED")
-    print(f"Results saved in: {OUTPUT_DIR}")
+    print("ALL SCENARIOS FINISHED")
     print("=" * 80)
 
 
