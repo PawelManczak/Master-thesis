@@ -21,13 +21,6 @@ This is the primary implementation and evaluation environment for the final thes
 *   **Thesis Document:** Contains the entire LaTeX source code (`isd.tex`) used to build the final thesis PDF.
 *   *For details, see [`second part/README.md`](second part/README.md).*
 
-## Root-Level Utilities
-The main directory houses project-level metadata and tracking scripts:
-*   `requirements.txt`: Global Python dependencies required to run both parts.
-*   `list_data.py` & `run_sizes.py`: Utility scripts for auditing and checking dataset sizes across the repository.
-*   `track.py`: Progress or metadata tracking script logic.
-*   `test_import.py`: Validates environment package installations.
-
 ## Setup & Installation
 
 It is recommended to run this project within a dedicated Python virtual environment (e.g., `venv` or `conda`).

@@ -1,9 +1,11 @@
 \documentclass{isd}
 
+\usepackage{gensymb}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{graphicx}
 \usepackage{multirow}
+
 %\graphicspath{{/home/damir/Pictures/}} %if pictures not in current directory of tex file
 
 \begin{comment}
@@ -58,13 +60,12 @@
 \maketitle
 
 \begin{abstract}
-Affective computing has emerged as a pivotal field in bridging the gap between human emotional intelligence and machine responsiveness, focusing on the computational modeling and automatic recognition of human emotions. This study aims to investigate the feasibility of detecting sequential patterns of physiological transitions during presumed emotional episodes. To achieve this, the ARMADA algorithm is utilized to analyze datasets characterized by continuous annotations and synchronized cardiovascular and electrodermal features. Our findings include [to be completed based on experimental results]. [Final concluding sentence regarding the impact of the findings to be added here].\par\vspace*{2mm}
+Affective computing has emerged as a pivotal field in bridging the gap between human emotional intelligence and machine responsiveness, focusing on the computational modeling and automatic recognition of human emotions. This study aims to investigate the feasibility of detecting sequential patterns of physiological transitions during presumed emotional episodes. To achieve this, the ARMADA algorithm is utilized to analyze datasets characterized by continuous annotations and synchronized cardiovascular and electrodermal features as well as skin temperature. Our findings indicate that the extracted temporal patterns are highly idiosyncratic, lacking cross-dataset universality. The stability of physiological rules proved to be heavily dependent on individual biological baselines, specific annotation protocols, and the chosen emotional models. Ultimately, this significant inter-subject and dataset-specific variability severely limits the extraction of broadly generalizable, universal physiological rules for emotion recognition.\par\vspace*{2mm}
 \textbf{Keywords:} Physiological Rule Mining, Emotion Recognition, ARMADA Algorithm, Affective Computing, Cross-Dataset Analysis
 \end{abstract}
 
-
 \section{Introduction}
-Automatic emotion recognition plays a crucial role in Affective Computing, offering the potential for continuous assessment of human emotional states \cite{sharma2019dataset}. Emotion recognition systems are built on diverse modalities, most notably facial expressions and vocalisation \cite{}. Still, researchers have long also recognized the potential of physiological signals for emotion assessment. This stems from the fact that unlike facial expressions or voice, physiological responses such as Electrodermal Activity (EDA), Photoplethysmography (PPG), and Heart Rate Variability (HRV) are largely controlled by the autonomic nervous system and reflect genuine emotional states without conscious distortion \cite{shu2018review}. In recent years, an extensive body of literature has adopted machine learning and deep learning techniques, including Support Vector Machines (SVMs), Convolutional Neural Networks (CNNs), and Recurrent Neural Networks such as LSTMs, to process these complex time-series signals \cite{bota2019review}. Although these models often achieve strong classification performance, their predictions are typically difficult to interpret in mechanistic terms, making it challenging to explicitly explain how temporally evolving physiological changes relate to the emergence of a particular emotional state. 
+Automatic emotion recognition plays a crucial role in Affective Computing, offering the potential for continuous assessment of human emotional states \cite{sharma2019dataset}. Emotion recognition systems are built on diverse modalities, most notably facial expressions. Still, researchers have long also recognized the potential of physiological signals for emotion assessment. This stems from the fact that unlike facial expressions or voice, physiological responses such as Electrodermal Activity (EDA), Photoplethysmography (PPG), and skin temperature (SKT) are largely controlled by the autonomic nervous system and reflect genuine emotional states without conscious distortion \cite{shu2018review}. In recent years, an extensive body of literature has adopted machine learning and deep learning techniques, including Support Vector Machines (SVMs), Convolutional Neural Networks (CNNs), and Recurrent Neural Networks such as LSTMs, to process these complex time-series signals \cite{bota2019review}. Although these models often achieve strong classification performance, their predictions are typically difficult to interpret in mechanistic terms, making it challenging to explicitly explain how temporally evolving physiological changes relate to the emergence of a particular emotional state. 
 
 From another perspective, the past few years have highlighted the necessity of shifting emotion recognition systems away from 'black box' models toward architectures that enable explainability of their outputs \cite{gunning2016xai, adadi2018peeking}. Despite the abundance of modern Explainable AI (XAI) techniques, rule-based systems have seen a resurgence in importance due to their naturally transparent and self-explanatory nature \cite{a18090586, rahman2026axai}. The application of sequential rule mining to physiological signals, all the while, remains in its infancy. Even though human physiological responses naturally unfold over time, very few studies actually use sequential rules to analyze them \cite{schneider2025associations}. To address this gap the research objective is to \textbf{explore the feasibility of discovering temporal patterns within specific physiological signals, leveraging continuously annotated data through the application of the Association Rule Mining And Discovery Algorithm (ARMADA)} \cite{james2004armada, winarko2007armada}. 
 
@@ -79,48 +80,15 @@ To achieve the goal, firstly, the research questions were defined in Section \re
 \section{Research Questions}
 \label{sec:researchQuestions}
 
-To provide a structured investigation to achieve the primary objective of this study, the research focuses on the following two research questions:
+To provide a structured investigation to achieve the primary objective of this study, the two research questions were defined:
 
-\begin{enumerate}
-\item{\textbf{RQ1: Technical Feasibility and Rule Stability}
+\textbf{RQ1: Technical Feasibility and Rule Stability}
+\textit{To what extent can the ARMADA algorithm effectively extract stable and statistically significant temporal association rules from multi-modal, continuously annotated physiological datasets?} and 
 
-\textit{To what extent can the ARMADA algorithm effectively extract stable and statistically significant temporal association rules from multi-modal, continuously annotated physiological datasets?}
+{\textbf{RQ2: Pattern Discovery and Physiological Correlation}. \textit{Which specific temporal patterns in physiological signals (such as HRV and EDA) are most frequently associated with transitions in emotional states according to the discovered rules?} 
 
-To address the complexity of this question, the following sub-questions are investigated:
-
-\begin{itemize}
-\item{\textbf{RQ 1.1 (Annotation Source)}
-
-\textit{How does the source of emotional labels—specifically self-reports versus expert external annotations—influence the quality and consistency of the discovered temporal rules?}}
-
-\item{\textbf{RQ 1.2 (Emotional Model)} 
-
-\textit{To what extent does the choice of emotional model (discrete categories \cite{ekman1992argument} vs. multidimensional valence-arousal space \cite{russell1980circumplex}) affect the algorithm's ability to identify meaningful patterns in physiological signals?}}
-\end{itemize}
-}
-
-\item{\textbf{RQ2: Pattern Discovery and Physiological Correlation}
-
-\textit{Which specific temporal patterns in physiological signals (such as HRV and EDA) are most frequently associated with transitions in emotional states according to the discovered rules?}
-
-To analyze the generalizability of these patterns, the following sub-questions are investigated:
-
-\begin{itemize}
-    \item{\textbf{RQ 2.1 (Demographic Factors)} 
-    
-    \textit{To what extent do demographic characteristics, specifically gender and age, influence the structure and types of temporal association rules extracted by the ARMADA algorithm?}}
-    \item{\textbf{RQ 2.2 (Cross-group Consistency)}
-    
-    \textit{Are there identifiable "universal" physiological patterns that remain consistent across different demographic groups, or are the discovered rules predominantly group-specific?}}
-
-    \item{\textbf{RQ 2.3 (Multimodality Advantage)}
-
-    \textit{How does the performance and interpretability of multi-modal association rules compare to single-modal rules in describing emotional transitions?}
-    }
-\end{itemize}
-
-}
-\end{enumerate}
+To address the complexity of these questions, the sub-questions were investigated. The two sub-questions were defined for RQ1: RQ 1.1 (Annotation Source) \textit{How does the source of emotional labels—specifically self-reports versus expert external annotations—influence the quality and consistency of the discovered temporal rules?}} and RQ 1.2 (Emotional Model) \textit{To what extent does the choice of emotional model (discrete categories \cite{ekman1992argument} vs. multidimensional valence-arousal space \cite{russell1980circumplex}) affect the algorithm's ability to identify meaningful patterns in physiological signals?}
+For the analysis of the generalizability of the patterns addressed in RQ2 the three sub-questions were defined: RQ 2.1 (Demographic Factors) \textit{To what extent do demographic characteristics, specifically gender and age, influence the structure and types of temporal association rules extracted by the ARMADA algorithm?}, RQ 2.2 (Cross-group Consistency) \textit{Are there identifiable "universal" physiological patterns that remain consistent across different demographic groups, or are the discovered rules predominantly group-specific?}, and RQ 2.3 (Multimodality Advantage) \textit{How does the performance and interpretability of multi-modal association rules compare to single-modal rules in describing emotional transitions?}
 
 %To address this gap, this paper introduces a sequential rule mining approach to physiological data, shifting the focus from opaque "black-box" predictions to interpretable temporal rules. Specifically, this study aims to answer the following research questions:
 
@@ -140,7 +108,11 @@ To analyze the generalizability of these patterns, the following sub-questions a
 %\subsection{Emotion Recognition and Physiological Signals}
 %The field of Affective Computing has long recognized the potential of physiological signals for emotion assessment. Unlike facial expressions or voice, physiological responses such as Electrodermal Activity (EDA), Photoplethysmography (PPG), and Heart Rate Variability (HRV) are largely controlled by the autonomic nervous system and reflect genuine emotional states without conscious distortion \cite{shu2018review}. In recent years, an extensive body of literature has adopted machine learning and deep learning techniques to process these complex time-series signals \cite{bota2019review}. StThe past few years have highlighted the necessity of shifting emotion recognition systems away from 'black box' models toward architectures that allow for the explainability of their outputs. Studies frequently rely on sophisticated architectures capable of high-accuracy classification. However, while these predictive models demonstrate impressive performance, they predominantly function as black-box mechanisms, rarely offering transparent insights into how temporal interactions among distinct physiological events shape human emotions over time.
 
+The presented study is aligned with the broader trend in affective computing of integrating Explainable AI (XAI) to enhance model transparency. 
+
 \subsection{Sequential Rule Mining in Affective Computing}
+
+
 While sequential pattern mining has been successfully applied to discover temporal relationships within data, its utilization in emotion recognition has been mostly restricted to other modalities. A significant amount of research has focused on extracting sequential emotion-aware rules from text data, particularly social media content and micro-blogs \cite{skenduli2021mining, wen2014emotion}. For instance, tracing the temporal emotional roadmap of users through sequences of online posts has proven valuable in depressive tendency detection \cite{giuntini2021tracing}. Similarly, sequential pattern mining has been utilized to analyze multimodal combinations of verbal and facial clues in video data, unearthing temporal patterns during interpersonal interactions \cite{porhet2017mining}. Despite these advancements across text and video modalities, physiological data remains notably excluded from sequential rule-mining approaches, leaving an unaddressed gap regarding the explicit, universally interpretable temporal rules defining human physiological reactions.
 
 \section{Methodology}
@@ -156,14 +128,15 @@ This section outlines the research framework, starting with the fundamental assu
 \end{figure}
 
 \subsection{Preliminary Assumptions}
-To ensure the clarity and focus of the investigation, the following primary assumptions and technical choices have been established:
+To ensure the clarity and focus of the investigation, the primary assumptions and technical choices have been established.
 
-\begin{enumerate}
-    \item \textbf{Selection of Physiological Modalities:} The study focuses on two primary types of signals: Cardiac Activity (specifically Heart Rate Variability – HRV) and Electrodermal Activity (EDA). These modalities were selected for two main reasons. First, they are highly sensitive to autonomic nervous system changes, providing reliable markers for emotional arousal and valence. Second, they represent the most prevalent biosignals in publicly available affective computing datasets, ensuring that the proposed framework is compatible with a wide range of existing research benchmarks and allows for cross-dataset validation of the discovered rules.
-    \item{\textbf{Pattern Discovery Paradigm:} The research framework is based on the Sequential Association Rules (SAR) mining approach. In contrast to static association rules, SAR accounts for the temporal order of events, which is essential for capturing the dynamic nature of emotional transitions and the inherent physiological lag between a stimulus and the body's response.}
-    \item{\textbf{Algorithmic Framework:} The pattern discovery process is executed using the ARMADA algorithm, which is specifically engineered to extract association rules from multi-modal time-series data. A fundamental characteristic of this approach is its reliance on discretized symbolic intervals \cite{winarko2007armada} rather than raw continuous data points. This methodology enables the seamless integration of signals with heterogeneous characteristics, such as high-frequency cardiac data and slow-varying electrodermal activity, by transforming them into a unified stream of interval-based events. By representing physiological changes as time-stamped symbols with a defined duration, ARMADA facilitates the identification of complex temporal predicates—such as \textit{before}, \textit{meets}, \textit{overlaps}, \textit{is-finished-by}, \textit{contains}, \textit{equals}, and \textit{starts} — that extend beyond simple co-occurrence. This capability is essential for modeling the physiological lag inherent between an emotional stimulus and the subsequent autonomic nervous system response. Furthermore, the algorithm does not impose a rigid, a-priori structure on the discovered rules, allowing for the detection of both acute signal spikes and long-term correlational trends. The resulting set of human-readable "If-Then" rules ensures total model transparency, directly aligning with the XAI paradigm by providing causal-like justifications for affective state classifications.}
-    \item{\textbf{Rule Evaluation Metrics:} To assess the quality and reliability of the discovered patterns, the research framework relies on standard association rule metrics—primarily \textit{Support}, \textit{Confidence}, and \textit{Lift}—specifically adapted for temporal sequences.}
-\end{enumerate}
+\textbf{Selection of Physiological Modalities:} The study focuses on three primary types of signals: Blood Volume Pulse (BVP), EDA, and SKT. These modalities were selected for two main reasons. First, they are highly sensitive to autonomic nervous system changes, providing reliable markers for emotional arousal (EDA \cite{jang2014relationship, sharma2016brief}, BVP \cite{park2022photoplethysmogram, jang2014relationship, shu2018review} and SKT) and valence (primarily Heart Rate Variability (HRV) \cite{porges2007polyvagal, shaffer2017overview, appelhans2006heart}). Second, they represent the most prevalent biosignals in publicly available affective computing datasets, ensuring that the proposed framework is compatible with a wide range of existing research benchmarks and allows for cross-dataset validation of the discovered rules.
+
+\textbf{Pattern Discovery Paradigm:} The research framework is based on the Sequential Association Rules (SAR) mining approach. In contrast to static association rules, SAR accounts for the temporal order of events, which is essential for capturing the dynamic nature of emotional transitions and the inherent physiological lag between a stimulus and the body's response.
+
+\textbf{Algorithmic Framework:} The pattern discovery process is executed using the ARMADA algorithm, which is specifically engineered to extract association rules from multi-modal time-series data. A fundamental characteristic of this approach is its reliance on discretized symbolic intervals \cite{winarko2007armada} rather than raw continuous data points. This methodology enables the seamless integration of signals with heterogeneous characteristics, such as high-frequency cardiac data and slow-varying electrodermal activity, by transforming them into a unified stream of interval-based events. By representing physiological changes as time-stamped symbols with a defined duration, ARMADA facilitates the identification of complex temporal predicates—such as \textit{before}, \textit{meets}, \textit{overlaps}, \textit{is-finished-by}, \textit{contains}, \textit{equals}, and \textit{starts} — that extend beyond simple co-occurrence. This capability is essential for modeling the physiological lag inherent between an emotional stimulus and the subsequent autonomic nervous system response. Furthermore, the algorithm does not impose a rigid, a-priori structure on the discovered rules, allowing for the detection of both acute signal spikes and long-term correlational trends. The resulting set of human-readable "If-Then" rules ensures total model transparency, directly aligning with the XAI paradigm by providing causal-like justifications for affective state classifications.
+
+\textbf{Rule Evaluation Metrics:} To assess the quality and reliability of the discovered patterns, the research framework relies on standard association rule metrics—primarily \textit{Support}, \textit{Confidence}, and \textit{Lift}—specifically adapted for temporal sequences.
 
 
 
@@ -196,143 +169,109 @@ To ensure the clarity and focus of the investigation, the following primary assu
 
 \subsection{Core Methodology}
 
-\subsection{Preliminary Assumptions}
-To ensure the clarity and focus of the investigation, the following primary assumptions and technical choices have been established:
-
-\begin{enumerate}
-    \item \textbf{Selection of Physiological Modalities:} The study focuses on two primary types of signals: Cardiac Activity (specifically Heart Rate Variability – HRV) and Electrodermal Activity (EDA). These modalities were selected for two main reasons. First, they are highly sensitive to autonomic nervous system changes, providing reliable markers for emotional arousal and valence. Second, they represent the most prevalent biosignals in publicly available affective computing datasets, ensuring that the proposed framework is compatible with a wide range of existing research benchmarks and allows for cross-dataset validation of the discovered rules.
-    \item{\textbf{Pattern Discovery Paradigm:} The research framework is based on the Sequential Association Rules (SAR) mining approach. In contrast to static association rules, SAR accounts for the temporal order of events, which is essential for capturing the dynamic nature of emotional transitions and the inherent physiological lag between a stimulus and the body's response.}
-\end{enumerate}
-
-
-Pattern Discovery Paradigm: We adopt the Sequential Association Rules (SAR) mining approach. Unlike static association rules, SAR accounts for the temporal order of events, which is critical for capturing the dynamic nature of emotional transitions and physiological lag.
-
-Algorithmic Framework: The ARMADA algorithm is selected as the core mining tool. ARMADA is specifically designed for multi-modal datasets, allowing for the efficient discovery of complex, time-stamped relationships across heterogeneous signals without the need for a "black-box" architecture.
-
-
-
-%\subsection{Sequential Association Rule Mining}
-%Sequential rule mining is a specialized data mining framework aimed at discovering temporal associations between events in sequence databases. \cite{fournier2011rulegrowth,fournier2014erminer} Unlike standard association rule mining (e.g., Apriori \cite{huang2000fast}), which identifies co-occurring items regardless of order, sequential rule mining extracts patterns of the form $X \rightarrow Y$, implying that the antecedent event $X$ temporally precedes the consequent event $Y$. Sequential pattern mining algorithms, such as GSP (Generalized Sequential Pattern) \cite{srikant1996mining} or PrefixSpan \cite{han2001prefixspan}, focus on discovering frequent subsequences and are often used as baselines or building blocks for rule extraction.\par
-
-
-%\textit{Support} quantifies the prevalence or frequency of a rule across the entire dataset. It is defined as the proportion of sequences in $S$ where the event $X$ is followed by the event $Y$:
-%\begin{equation}
-%Support(X \rightarrow Y) = \frac{|\{s \in S \mid X \mbox{ precedes } Y \mbox{ in } s\}|}{|S|}
-%\end{equation}
-
-%\textit{Confidence} measures the directional reliability of the rule, defined as the conditional probability that $Y$ will follow $X$, given that $X$ has already occurred:
-%\begin{equation}
-%Confidence(X \rightarrow Y) = \frac{Support(X \rightarrow Y)}{Support(X)}
-%\end{equation}
-
-%In the context of physiological emotion recognition, defining strict bounds for these metrics alongside explicit temporal gaps is crucial to ensure that physiological reactions are not arbitrarily linked to temporally distant emotion states.
-
-
-\subsubsection{Selection of the ARMADA Algorithm}
-
-Selecting an appropriate data mining algorithm for this study required matching the specific nature of our dataset with the algorithm's technical capabilities. Specifically, the chosen method had to support multiple data channels simultaneously, integrate both categorical variables (e.g., participant sex) and continuous numerical values (e.g., EDA signals), and, most importantly, capture strict time consequences between physiological events and emotional responses.
-
-
-Although some temporal rule-mining approaches can operate without an explicit discretization step \cite{zhao2021tsarm}, this is not problematic in our setting, as ARMADA is designed for discretized interval-based events \cite{winarko2007armada}. This representation is also consistent with the nature of the analyzed features, which are subject-specific and normalized before rule extraction, making their transformation into discrete states both natural and interpretable.
-
-Moreover, ARMADA is able to represent several types of temporal relationships between interval-based events, including \textit{before}, \textit{meets}, \textit{overlaps}, \textit{is-finished-by}, \textit{contains}, \textit{equals}, and \textit{starts} \cite{winarko2007armada}. Thus, the relation between two events is not limited to a simple ordering such as \(A\) before \(B\), but can also capture more specific temporal configurations between intervals. This is useful in physiological emotion recognition, where the association between a physiological response and an emotional state may depend not only on event order, but also on the exact temporal relation between them. In addition, the \texttt{MAXGAP} parameter makes it possible to constrain the maximum allowable delay between related events, focusing the rule discovery process on temporally local dependencies \cite{winarko2007armada}.
-
+Six main steps were defined within the Core Methodology. The first step, \textbf{Data Acquisition}, involves selecting datasets that address the research questions—specifically those providing continuous annotations, multimodal biosignals, and demographic information (primarily gender and age). Additionally, it was required that some datasets contain self-annotations while others provide external ones. A specific emotional model was not mandatory, as it was assumed that discrete models could be transformed into multidimensional one and vice versa. Incorporating that requirement carried a risk regarding dataset availability; however, the study necessitated at least two externally annotated and two self-annotated sets. In the \textbf{Data Preprocessing and Feature Extraction} step, physiological signals were processed to extract key features, which were then subjected to normalization and discretization. This stage also involved the harmonization of labeling across disparate datasets. Depending on the specific emotional model employed, appropriate transformations were executed to unify the emotion representation. A key component of this research involves the \textbf{Experimental Design and Validation Strategy}, which establishes the protocols required to investigate the research questions. In the subsequent \textbf{Experiments Execution} phase, these designs are implemented. Finally, the resulting data are analyzed to evaluate their alignment with the study's original goal and research questions (\textbf{Analysis and Evaluation}).
 
 \section{Data Acquisition}
 \label{sec:datasets}
 
+Searching for datasets combining multimodal physiological recordings with relatively continuous or densely sampled emotions annotations was conducted in an unstructured study, which encompassed analysis of the Systematic Literature Review (SLR) \cite{ometov2025stress, 11214492, app14167165}, interviews with other Affective Computing researchers, and direct efforts to obtain dataset access, including contacting dataset authors with formal requests, completing User Agreement Forms when required, and, in the case of the EMBOA dataset, reaching out to the person responsible for the project.
+%[tutaj proszę o uzupełnienie co tam jeszcze Pan robił, aby te zbiory danych pozyskać]. 
+As a result of this study five multimodal emotion datasets was chosen: K-emoCon \cite{park2020k}, Continuously Annotated Signals of Emotion (CASE) \cite{sharma2019dataset}, Continuous Physiological and
+Behavioral Emotion Annotation Dataset for 360\degree Videos (CEAP-360VR) \cite{xue2021ceap}, EMBOA \cite{barkan2024challenges}A and EmoWorker \cite{lee2026multimodal}. These datasets differ in both acquisition setting and annotation protocol, covering controlled laboratory recordings as well as conversational and immersive VR scenarios. They also include both self-reported annotations and externally assigned labels, which makes them suitable for evaluating rule mining under heterogeneous emotion-labeling schemes.
 
-Although a broader range of affective datasets exists \cite{ometov2025stress}, in this work we focused on those that combine multimodal physiological recordings with relatively continuous or densely sampled emotion annotations and for which data access could be obtained.\par
+More specifically, EMBOA was collected in a human-robot interaction setting and combines Empatica E4 peripheral signals with externally assigned behavioral annotations, whereas K-emoCon captures dyadic conversations and provides self, partner, and external affective ratings alongside physiological recordings. CASE represents a controlled laboratory dataset with high-resolution physiological signals and continuous self-assessment gathered using a joystick interface, while CEAP-360VR extends this paradigm to immersive \(360^\circ\) audiovisual stimulation in virtual reality \cite{xue2021ceap}. EmoWorker, in turn, provides multimodal physiological recordings acquired in a workplace-related context together with continuous affect annotations \cite{lee2026multimodal}.
+The datasets further vary in the physiological modalities and sampling rates they provide. In addition to the physiological signals selected for this study, some datasets also incorporate electrocardiogram, electroencephalogram, respiration, eye tracking, or motion-related signals \cite{kiejdo2025late,park2020k,sharma2019dataset,xue2021ceap,lee2026multimodal}. The annotation schemes and modalities used in the evaluated datasets and incorporated in the study are summarized in Table \ref{tab:datasets}.
 
-The analysis was conducted on five multimodal emotion datasets: EMBOA, K-emoCon, CASE, CEAP-360VR, and EmoWorker \cite{kiejdo2025late,park2020k,sharma2019dataset,xue2021ceap,lee2026multimodal}. These datasets differ in both acquisition setting and annotation protocol, covering controlled laboratory recordings as well as conversational and immersive VR scenarios. They also include both self-reported annotations and externally assigned labels, which makes them suitable for evaluating rule mining under heterogeneous emotion-labeling schemes.
-
-More specifically, EMBOA was collected in a human-robot interaction setting and combines Empatica E4 peripheral signals with externally assigned behavioral annotations \cite{kiejdo2025late}, whereas K-emoCon captures dyadic conversations and provides self, partner, and external affective ratings alongside physiological recordings \cite{park2020k}. CASE represents a controlled laboratory dataset with high-resolution physiological signals and continuous self-assessment gathered using a joystick interface \cite{sharma2019dataset}, while CEAP-360VR extends this paradigm to immersive \(360^\circ\) audiovisual stimulation in virtual reality \cite{xue2021ceap}. EmoWorker, in turn, provides multimodal physiological recordings acquired in a workplace-related context together with continuous affect annotations \cite{lee2026multimodal}. The annotation schemes used in the evaluated datasets are summarized in Table~1.
-
-\begin{table}[!h]
-\small
-\centering
-\caption{Annotation methodologies and frequencies across evaluated datasets.}
-\label{tab:annotations}
-\resizebox{\textwidth}{!}{
-\begin{tabular}{|l|p{7cm}|p{3.5cm}|}
-\hline
-\textbf{Dataset} & \textbf{Annotation Type} & \textbf{Annotation Freq.} \\
-\hline
-EMBOA & External (BORIS) & Variable \\
-\hline
-K-emoCon & Self, Partner, External & 0.2 Hz (every 5s) \\
-\hline
-CASE & Self (Continuous Joystick) & 20 Hz \\
-\hline
-CEAP-360VR & Self (Continuous + SAM Questionnaire) & 10 Hz \\
-\hline
-EmoWorker & Self (Continuous traces) & 5-10 Hz \\
-\hline
+% Please add the following required packages to your document preamble:
+% \usepackage{multirow}
+\begin{table}[]
+\caption{Annotation schemas and modalities used in the incorporated datasets.}
+\label{tab:datasets}
+\begin{tabular}{l|lll|lll}
+\multicolumn{1}{c|}{\multirow{2}{*}{\textbf{Dataset}}} &
+  \multicolumn{3}{c|}{\textbf{Annotations}} &
+  \multicolumn{3}{c}{\textbf{Frequency (Hz)}} \\ \cline{2-7} 
+\multicolumn{1}{c|}{} &
+  \multicolumn{1}{c|}{\textbf{Type}} &
+  \multicolumn{1}{c|}{\textbf{Origin}} &
+  \multicolumn{1}{c|}{\textbf{Frequency (Hz)}} &
+  \multicolumn{1}{c|}{\textbf{BVP}} &
+  \multicolumn{1}{c|}{\textbf{EDA}} &
+  \multicolumn{1}{c}{\textbf{SKT}} \\ \hline
+EMBOA &
+  \multicolumn{1}{l|}{External} &
+  \multicolumn{1}{l|}{BORIS} &
+  Variable &
+  \multicolumn{1}{l|}{64} &
+  \multicolumn{1}{l|}{4} &
+  4 \\ \hline
+K-emoCon &
+  \multicolumn{1}{l|}{\begin{tabular}[c]{@{}l@{}}External\\ Partner\\ Self\end{tabular}} &
+  \multicolumn{1}{l|}{} &
+  0.2 &
+  \multicolumn{1}{l|}{64} &
+  \multicolumn{1}{l|}{4} &
+  4 \\ \hline
+CASE &
+  \multicolumn{1}{l|}{Self} &
+  \multicolumn{1}{l|}{Joystick} &
+  20 &
+  \multicolumn{1}{l|}{1000} &
+  \multicolumn{1}{l|}{1000} &
+  1000 \\ \hline
+CEAP-360VR &
+  \multicolumn{1}{l|}{Self} &
+  \multicolumn{1}{l|}{\begin{tabular}[c]{@{}l@{}}Self-assesment\\ Questionnaire\end{tabular}} &
+  10 &
+  \multicolumn{1}{l|}{64} &
+  \multicolumn{1}{l|}{4} &
+  4 \\ \hline
+EmoWorker &
+  \multicolumn{1}{l|}{Self} &
+  \multicolumn{1}{l|}{Continuous traces} &
+  5-10 &
+  \multicolumn{1}{l|}{64} &
+  \multicolumn{1}{l|}{4} &
+  4
 \end{tabular}
-}
 \end{table}
 
-\subsection{Modalities}
-The datasets further vary in the physiological modalities and sampling rates they provide. While several of them share common peripheral signals, such as Electrodermal Activity (EDA) and Blood Volume Pulse (BVP), others additionally include modalities such as ECG, EEG, respiration, eye tracking, or motion-related signals \cite{kiejdo2025late,park2020k,sharma2019dataset,xue2021ceap,lee2026multimodal}. The physiological modalities considered in our experiments are listed in Table~\ref{tab:modalities}.
+%To facilitate a unified comparative analysis and enable the ARMADA-based rule mining process, data from all disparate sources was resampled, synchronized, and aligned into standardized 5-second multi-resolution time windows.\par
 
-\begin{table}[!h]
-\small
-\centering
-\caption{Primary physiological modalities and sampling frequencies across evaluated datasets.}
-\label{tab:modalities}
-\resizebox{\textwidth}{!}{
-\begin{tabular}{|l|p{10cm}|}
-\hline
-\textbf{Dataset} & \textbf{Physiological Frequencies} \\
-\hline
-EMBOA & EDA (4Hz), BVP (64Hz), ACC (32Hz), SKT (4Hz) \\
-\hline
-K-emoCon & EDA (4Hz), BVP (64Hz), ACC (32Hz), SKT (4Hz), EEG, ECG \\
-\hline
-CASE & EDA, BVP, ECG, RSP, EMG, SKT (All 1000Hz) \\
-\hline
-CEAP-360VR & EDA (4Hz), BVP (64Hz), ACC (64Hz), SKT (4Hz), Eye tracking \\
-\hline
-EmoWorker & EDA (4Hz), BVP (64Hz), ACC (32Hz), SKT (4Hz), ECG (130Hz), EEG (256Hz) \\
-\hline
-\end{tabular}
-}
-\end{table}
+%The common modalities used in the cross-dataset analysis were EDA, BVP, and skin temperature (SKT). These signals were selected because they are available in most of the analyzed datasets and provide some information about autonomic aspects of emotional responses.
 
-To facilitate a unified comparative analysis and enable the ARMADA-based rule mining process, data from all disparate sources was resampled, synchronized, and aligned into standardized 5-second multi-resolution time windows.\par
+%Electrodermal activity (EDA) reflects changes in skin conductance driven mainly by sympathetic nervous system activation \cite{jang2014relationship}. For this reason, EDA is one of the physiological modalities most consistently associated with arousal \cite{jang2014relationship, sharma2016brief}.
 
-The common modalities used in the cross-dataset analysis were EDA, BVP, and skin temperature (SKT). These signals were selected because they are available in most of the analyzed datasets and provide some information about autonomic aspects of emotional responses.
+%Blood Volume Pulse (BVP) is a pulse-related physiological signal derived from photoplethysmography \cite{li2021pulse}, from which features such as heart rate (HR), inter-beat interval (IBI), and heart rate variability (HRV) can be estimated. HRV features include, for example, SDNN, RMSSD, and pNN50 \cite{kolakowski2025comparative}. In the literature, BVP-derived features are more consistently associated with arousal than with valence \cite{park2022photoplethysmogram, jang2014relationship, shu2018review}.
 
-Electrodermal activity (EDA) reflects changes in skin conductance driven mainly by sympathetic nervous system activation \cite{jang2014relationship}. For this reason, EDA is one of the physiological modalities most consistently associated with arousal \cite{jang2014relationship, sharma2016brief}.
+%Skin temperature (SKT) is a peripheral physiological measure influenced by blood flow in the skin and autonomic nervous system activity. In emotion research, it is treated mainly as an indirect marker of autonomic arousal \cite{salazar2015mental}. 
 
-Blood Volume Pulse (BVP) is a pulse-related physiological signal derived from photoplethysmography \cite{li2021pulse}, from which features such as heart rate (HR), inter-beat interval (IBI), and heart rate variability (HRV) can be estimated. HRV features include, for example, SDNN, RMSSD, and pNN50 \cite{kolakowski2025comparative}. In the literature, BVP-derived features are more consistently associated with arousal than with valence \cite{park2022photoplethysmogram, jang2014relationship, shu2018review}.
+\section{Data Preprocessing and Feature Extraction}
+Physiological features were extracted directly from the raw signals of all datasets using the same NeuroKit2-based processing pipeline \cite{makowski2021neurokit}, ensuring a standardized representation across modalities and datasets before temporal segmentation.
+HR-based features were used to characterize both the instantaneous cardiac state and short-term heart rate variability. In particular, HR and IBI represented the current dynamics of heart activity, whereas \texttt{hrv\_rmssd}, \texttt{hrv\_pnn50}, \texttt{hrv\_sdnn}, \texttt{hrv\_cvnn}, and \texttt{hrv\_hfn} quantified variations between successive beats and reflected autonomic cardiovascular regulation. EDA features were included to capture phasic electrodermal responses, with \texttt{eda\_scr\_amp}, \texttt{eda\_scr\_auc}, and \texttt{eda\_peaks} describing the magnitude and occurrence of skin conductance reactions. Temperature features comprised \texttt{temp\_mean} and \texttt{temp\_slope}, representing the average thermal level within a segment and its temporal trend, respectively.
 
-Skin temperature (SKT) is a peripheral physiological measure influenced by blood flow in the skin and autonomic nervous system activity. In emotion research, it is treated mainly as an indirect marker of autonomic arousal \cite{salazar2015mental}. 
+%\subsection{Sliding Window Mechanism}
+To synchronize disparate sampling rates across multiple datasets, continuous physiological signals and ground truth annotations were segmented using a static sliding window mechanism. A multi-resolution methodology tailored to modality reactivity parameters was applied; dynamic signals were extracted utilizing 5-second sliding windows \cite{boucsein2012electrodermal}. Conversely, parameters inherently reliant on longer macroscopic measurement phases, specifically heart rate variability (HRV) and skin temperature, were captured via independent 30-second windows \cite{rossi2020error}.
 
-\section{Preprocessing}
-
-\subsection{Sliding Window Mechanism}
-To synchronize disparate sampling rates across multiple datasets, continuous physiological signals and ground truth annotations were segmented using a static sliding window mechanism. We applied a multi-resolution methodology tailored to modality reactivity parameters: dynamic signals such as electrodermal activity (EDA), heart rate, and accelerometer data were extracted utilizing short 5-second sliding windows \cite{boucsein2012electrodermal}. Conversely, parameters inherently reliant on longer macroscopic measurement phases, specifically heart rate variability (HRV) and skin temperature, were captured via independent 30-second windows \cite{rossi2020error}.
-
-\subsection{Discretization of Physiological Features}
+%\subsection{Discretization of Physiological Features}
 Because ARMADA requires symbolic input, continuous physiological signals were discretized into three states: Low (L), Medium (M), and High (H). To reduce subject-specific bias, since physiological baselines and response ranges can differ markedly across individuals \cite{gutierrez2024personalized, braithwaite2013guide}, we first applied participant-wise min-max normalization and then defined L/M/H using global terciles computed from the pooled normalized data.
-\subsection{Normalization and Discretization of Emotional Labels}
-For datasets featuring native dimensional annotations (e.g., 1--9 SAM scales), arousal and valence values were normalized to a $[0, 1]$ range per dataset and divided into strict terciles: low ($[0, 0.33)$), medium ($[0.33, 0.66)$), and high ($[0.66, 1.0]$).
+%\subsection{Normalization and Discretization of Emotional Labels}
+For datasets featuring native dimensional annotations (e.g., 1--9 Self-Assessment Manikin scales), arousal and valence values were normalized to a $[0, 1]$ range per dataset and divided into strict terciles: low ($[0, 0.33)$), medium ($[0.33, 0.66)$), and high ($[0.66, 1.0]$). Conversely, the EMBOA dataset uses a discrete emotional model, with external observers attributing percentage agreements to six primary emotions (Happy, Sad, Scared, Disgusted, Surprised, Angry) via the BORIS software. To unify the data representation, these discrete labels were mapped to continuous dimensional coordinates using Russell's circumplex model (e.g., Happy: $V=+1, A=+0.5$; Sad: $V=-1, A=-1$) \cite{}. The weighted aggregates were then rescaled to $[0, 1]$ and similarly discretized. This translation successfully yielded $1489$ valid valence states (929 \textit{medium}, 518 \textit{high}, 42 \textit{low}) and $952$ unified arousal states (711 \textit{medium}, 229 \textit{high}, 12 \textit{low}) suitable for ARMADA processing.
 
-Conversely, the EMBOA dataset uses a discrete emotional model, with external observers attributing percentage agreements to six primary emotions (Happy, Sad, Scared, Disgusted, Surprised, Angry) via the BORIS software. To unify the data representation, these discrete labels were mapped to continuous dimensional coordinates using Russell's circumplex model (e.g., Happy: $V=+1, A=+0.5$; Sad: $V=-1, A=-1$). The weighted aggregates were then rescaled to $[0, 1]$ and similarly discretized. This translation successfully yielded $1489$ valid valence states (929 \textit{medium}, 518 \textit{high}, 42 \textit{low}) and $952$ unified arousal states (711 \textit{medium}, 229 \textit{high}, 12 \textit{low}) suitable for ARMADA processing.
+To enable dimensional vs. discrete comparisons, all dimensional data were mapped into a $3 \times 3$ grid of 9 categorical emotions via Russell's circumplex model. Combinations of arousal and valence terciles defined unique discrete states (e.g., \textit{high} arousal and valence yielded \textit{excited}; \textit{medium} states yielded \textit{neutral}) \cite{}. This synchronized all datasets---both inherently dimensional and dimensional-mapped discrete cohorts (EMBOA)---into a single 9-label framework. Across all datasets, this produced $4073$ \textit{neutral} tuples, followed by \textit{calm} ($947$), \textit{content} ($938$), \textit{alert} ($603$), \textit{stressed} ($603$), \textit{upset} ($553$), \textit{excited} ($484$), \textit{sad} ($304$), and \textit{relaxed} ($207$).
 
-To enable dimensional vs. discrete comparisons (Section~\ref{sec:experimentsResults}), all dimensional data were mapped into a $3 \times 3$ grid of 9 categorical emotions via Russell's circumplex model. Combinations of arousal and valence terciles defined unique discrete states (e.g., \textit{high} arousal and valence yielded \textit{excited}; \textit{medium} states yielded \textit{neutral}). This synchronized all datasets---both inherently dimensional and dimensional-mapped discrete cohorts (EMBOA)---into a single 9-label framework. Across all datasets, this produced $4073$ \textit{neutral} tuples, followed by \textit{calm} ($947$), \textit{content} ($938$), \textit{alert} ($603$), \textit{stressed} ($603$), \textit{upset} ($553$), \textit{excited} ($484$), \textit{sad} ($304$), and \textit{relaxed} ($207$).
-
-\subsection{Temporal Alignment of Ground Truth Annotations}
+%\subsection{Temporal Alignment of Ground Truth Annotations}
 To enable strict association rule mining, annotation streams recorded at varied frequencies or by multiple observers were aggregated into a singular ground truth label per temporal window.
 
 For self-reported datasets (e.g., CASE, K-emoCon), high-frequency or asynchronous ratings within a physiological window were simply averaged (linear mean) to yield one synchronized dimensional label. 
 
 For externally annotated datasets featuring multiple observers, independent ratings were fused into a consensus sequence before window aggregation. For K-emoCon (External), we used the dataset's native \textit{aggregated\_external\_annotations}, where up to five continuous rating streams were aggregated via majority voting (see Code Availability). In EMBOA, the native percentage agreement across multiple BORIS raters served as the proportional weight mapping categorical emotions onto Russell’s dimensional space. This ensured deterministic emotion tracking across all cohorts.
-\subsection{Handling Missing Values}
+
+%\subsection{Age Cohort Unification}
+To support demographic pattern extraction without overly fragmenting the subset populations, participant ages from all 121 analyzed subjects were unified into a balanced binary threshold rather than multiple narrow buckets. Participants were strictly divided into \textit{Young} (age $\leq 25$; 60 participants) versus \textit{Older} (age $> 25$; 61 participants) groupings.
+%\subsection{Handling Missing Values}
 Corrupted intervals and missing values were inherently filtered or marked natively by the original dataset providers, allowing our methodology to bypass artificial interpolation entirely.
-\subsection{Age Cohort Unification}
-To support demographic pattern extraction (RQ2.1) without overly fragmenting the subset populations, participant ages from all 121 analyzed subjects were unified into a balanced binary threshold rather than multiple narrow buckets. Participants were strictly divided into \textit{Young} (age $\leq 25$; $N=60$) versus \textit{Older} (age $> 25$; $N=61$) groupings.
+
 
 \section{Experimental Design}
 \label{sec:experimentalDesign}
@@ -385,6 +324,7 @@ To investigate the influence of annotation source on rule quality (RQ~1.1), the 
 To assess the impact of the emotional model on pattern discovery, all six datasets were processed under two distinct label representations with the same strict parameters ($minsup = 0.5$, $minconf = 0.5$, $maxgap = 5$~s). In the \textit{dimensional} variant, arousal and valence were discretized into three levels (low, medium, high) and used directly as ARMADA events. In the \textit{discrete} variant, arousal and valence were jointly mapped onto a $3 \times 3$ grid to produce nine categorical emotion labels based on Russell's circumplex model \cite{russell1980circumplex}: \textit{stressed}, \textit{alert}, \textit{excited}, \textit{upset}, \textit{neutral}, \textit{content}, \textit{sad}, \textit{calm}, and \textit{relaxed}. Each dataset's native arousal/valence scale was normalized to $[0, 1]$ before mapping.
 
 \section{Results of Experiments}
+All experiments presented in this section were conducted, and the reported results were obtained, using scripts available in the public repository \cite{manczak_master_thesis_2026}. The repository contains the implementation necessary to reproduce the experimental procedure and the obtained outcomes.
 \label{sec:experimentsResults}
 
 \subsection{RQ1: Technical Feasibility and Rule Stability}
@@ -577,7 +517,7 @@ All nine universal rules share the temporal relation \textit{meets} and exclusiv
 
 \subsection{RQ 2.1 \& 2.2: Demographic Influences and Cross-group Consistency}
 \label{sec:results_rq2_demographics}
-To evaluate the influence of demographic characteristics (RQ 2.1) and overall cross-group consistency (RQ 2.2), participants across the four self-annotated datasets were segmented by Gender and Age under a 10\% minimum support threshold. Table~\ref{tab:demographics} summarizes the volume of universally discovered rules within each demographic subgroup compared to their intersection.
+To evaluate demographic influences (RQ 2.1) and cross-group consistency (RQ 2.2), participants in the four self-annotated datasets were segmented by Gender and Age at a 10\% minimum support threshold. Table~\ref{tab:demographics} compares universally discovered rules across these subgroups.
 
 \begin{table}[!h]
 \small
@@ -588,14 +528,15 @@ To evaluate the influence of demographic characteristics (RQ 2.1) and overall cr
 \hline
 \textbf{Split Category} & \textbf{Subgroup 1} & \textbf{Subgroup 2} & \textbf{Shared Overlap} & \textbf{Global Baseline} \\
 \hline
-\textbf{Gender} & Male: 114 & Female: 126 & 45 & 9 \\
+\textbf{Gender} & Male: 4 & Female: 6 & 0 & 9 \\
 \hline
-\textbf{Age ($\leq 25$ vs.\ $>25$)} & Young: 122 & Old: 109 & 36 & 9 \\
+\textbf{Age ($\leq 25$ vs.\ $>25$)} & Young: 6 & Old: 6 & 0 & 9 \\
 \hline
 \end{tabular}
 \end{table}
 
-While a foundational psychophysiological baseline exists (the 9 global rules), fine-grained temporal responses remain substantially demographic-specific. Evaluating data exclusively within demographic subgroups dramatically increases the number of consistent temporal rules (from 9 globally to 114--126 per gender group and 109--122 per age group). The intersection between subgroups (45 shared gender rules, 36 shared age rules) is considerably larger than the global baseline, indicating that homogeneous populations enable the discovery of more stable patterns. Nevertheless, the majority of subgroup-specific rules (69 unique to males, 81 unique to females) remain exclusive to their respective demographic, structurally demonstrating the influence of individual differences on physiological-emotional temporal dynamics.
+While 9 baseline rules apply globally, fine-grained temporal responses are highly demographic-specific. Subgroup analysis reveals small, distinct sets of universal rules (4--6 per group) with absolutely zero overlap between opposing demographics. This complete lack of shared rules indicates that homogeneous populations exhibit entirely unique physiological-emotional temporal dynamics, structurally demonstrating the profound influence of individual differences.
+
 
 \subsection{RQ 2.3: Multimodality Advantage}
 \label{sec:results_rq23}
@@ -624,6 +565,7 @@ Table~\ref{tab:multimodality} summarizes the relationship between pattern size a
 \section{Conclusions}
 \label{sec:conclusions}
 % Puste miejsce na podsumowanie i wnioski.
+This study demonstrates that the ARMADA algorithm effectively extracts interpretable temporal rules linking physiological signals to emotional transitions. Our cross-dataset analysis revealed that only nine truly universal rules exist across the self-annotated datasets. Moreover, while these nine rules are globally present, they represent rather obvious and expected baseline physiological responses. All of these strictly associated Heart Rate Variability (HRV) features with moderate arousal or valence, whereas Electrodermal Activity (EDA) patterns proved highly context-dependent. Furthermore, temporal physiological responses are highly individualized; segmenting participants by age and gender increased the number of stable, subgroup-specific rules tenfold. Regarding methodologies, external annotations produced higher-confidence rules compared to self-reports, and dimensional emotion models generalized significantly better across disparate datasets than discrete categorical models. We also found that combining multiple physiological modalities into single rules only improved confidence in highly controlled laboratory settings, whereas in more naturalistic scenarios, multimodality marginally decreased rule confidence due to higher experimental noise. Ultimately, while HRV serves as a robust, universal psychophysiological anchor, the development of reliable emotion recognition systems must carefully account for demographic variations and the specific environmental context.
 
 
 %\printbibliography
