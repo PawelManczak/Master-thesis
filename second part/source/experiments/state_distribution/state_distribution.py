@@ -21,6 +21,9 @@ EXPERIMENTS_DIR = SCRIPT_DIR.parent
 PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 
 sys.path.insert(0, str(EXPERIMENTS_DIR))
+sys.path.insert(0, str(EXPERIMENTS_DIR / "demographics"))
+sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
+sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "extracting"))
 
 from demographic_analysis import load_demographics_from_processed
 
@@ -31,7 +34,9 @@ DATASETS = {
     'CASE': DATA_DIR / "armada_case.csv",
     'K-emoCon': DATA_DIR / "armada_k_emocon.csv",
     'CEAP': DATA_DIR / "armada_ceap.csv",
-    'EmoWorker_v2': DATA_DIR / "armada_emoworker_v2.csv"
+    'EmoWorker_v2': DATA_DIR / "armada_emoworker_v2.csv",
+    'K-emo_ext': DATA_DIR / "armada_k_emocon_ext.csv",
+    'EMBOA': DATA_DIR / "armada_emboa.csv"
 }
 
 FEATURE_CATEGORIES = {
@@ -51,6 +56,12 @@ FEATURE_CATEGORIES = {
     'hrv_pnn20': ['hrv_pnn20_high', 'hrv_pnn20_medium', 'hrv_pnn20_low'],
     'hrv_pnn50': ['hrv_pnn50_high', 'hrv_pnn50_medium', 'hrv_pnn50_low'],
     'temp': ['temp_high', 'temp_medium', 'temp_low'],
+}
+
+FEATURE_GROUPS = {
+    'Emotion_and_Temp': ['arousal', 'valence', 'temp'],
+    'EDA': ['eda', 'eda_max', 'eda_peaks', 'eda_std', 'eda_scr_amp', 'eda_scr_auc'],
+    'HR_and_HRV': ['hr', 'hrv_sdnn', 'hrv_rmssd', 'hrv_cvnn', 'hrv_cvsd', 'hrv_pnn20', 'hrv_pnn50']
 }
 
 LEVEL_COLORS = {'high': '#e74c3c', 'medium': '#f39c12', 'low': '#3498db'}
@@ -101,33 +112,52 @@ def plot_dataset_comparison(all_data: pd.DataFrame, output_dir: Path):
     """Creates grouped bar charts comparing state distributions across datasets."""
     ds_names = sorted(all_data['dataset'].unique())
 
-    for cat_name, cat_states in FEATURE_CATEGORIES.items():
-        fig, ax = plt.subplots(figsize=(max(8, len(cat_states) * 1.5), 5))
+    for group_name, feats in FEATURE_GROUPS.items():
+        n_feats = len(feats)
+        cols = 3
+        rows = (n_feats + cols - 1) // cols
+        fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 4))
+        if isinstance(axes, np.ndarray):
+            axes = axes.flatten()
+        else:
+            axes = [axes]
 
-        x = np.arange(len(cat_states))
-        width = 0.8 / len(ds_names)
+        for idx, feat_name in enumerate(feats):
+            ax = axes[idx]
+            cat_states = FEATURE_CATEGORIES.get(feat_name, [])
+            if not cat_states:
+                continue
+            x = np.arange(len(cat_states))
+            width = 0.8 / max(1, len(ds_names))
 
-        for i, ds in enumerate(ds_names):
-            ds_data = all_data[all_data['dataset'] == ds]
-            counts = count_states(ds_data)
-            vals = []
-            for state in cat_states:
-                match = counts[counts['state'] == state]
-                vals.append(match['avg_count_per_participant'].values[0] if len(match) > 0 else 0)
-            offset = (i - len(ds_names) / 2 + 0.5) * width
-            ax.bar(x + offset, vals, width, label=ds, alpha=0.85)
+            for i, ds in enumerate(ds_names):
+                ds_data = all_data[all_data['dataset'] == ds]
+                counts = count_states(ds_data)
+                vals = []
+                for state in cat_states:
+                    match = counts[counts['state'] == state]
+                    vals.append(match['avg_count_per_participant'].values[0] if len(match) > 0 else 0)
+                offset = (i - len(ds_names) / 2 + 0.5) * width
+                ax.bar(x + offset, vals, width, label=ds, alpha=0.85)
 
-        ax.set_title(f'{cat_name} — State Distribution per Dataset', fontsize=13, fontweight='bold')
-        ax.set_ylabel('Avg intervals per participant')
-        ax.set_xticks(x)
-        ax.set_xticklabels([s.split('_')[-1] for s in cat_states], fontsize=10)
-        ax.legend(fontsize=8)
-        ax.grid(axis='y', alpha=0.3)
+            ax.set_title(feat_name, fontsize=12, fontweight='bold')
+            if idx % cols == 0:
+                ax.set_ylabel('Avg intervals/participant')
+            ax.set_xticks(x)
+            ax.set_xticklabels([s.split('_')[-1] for s in cat_states], fontsize=10)
+            if idx == 0:
+                ax.legend(fontsize=8)
+            ax.grid(axis='y', alpha=0.3)
+
+        for idx in range(n_feats, len(axes)):
+            fig.delaxes(axes[idx])
+
+        plt.suptitle(f'{group_name} — State Distribution per Dataset', fontsize=14, fontweight='bold', y=1.02)
         plt.tight_layout()
-        plt.savefig(output_dir / f'dataset_{cat_name}.png', dpi=150, bbox_inches='tight')
+        plt.savefig(output_dir / f'dataset_{group_name}.png', dpi=150, bbox_inches='tight')
         plt.close()
 
-    print(f"  Saved {len(FEATURE_CATEGORIES)} dataset comparison charts")
+    print(f"  Saved {len(FEATURE_GROUPS)} dataset comparison charts (grouped)")
 
 
 def plot_gender_comparison(all_data: pd.DataFrame, demo_df: pd.DataFrame, output_dir: Path):
@@ -146,33 +176,52 @@ def plot_gender_comparison(all_data: pd.DataFrame, demo_df: pd.DataFrame, output
     genders = ['M', 'F']
     gender_colors = {'M': '#2980b9', 'F': '#e74c3c'}
 
-    for cat_name, cat_states in FEATURE_CATEGORIES.items():
-        fig, ax = plt.subplots(figsize=(max(8, len(cat_states) * 1.5), 5))
+    for group_name, feats in FEATURE_GROUPS.items():
+        n_feats = len(feats)
+        cols = 3
+        rows = (n_feats + cols - 1) // cols
+        fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 4))
+        if isinstance(axes, np.ndarray):
+            axes = axes.flatten()
+        else:
+            axes = [axes]
 
-        x = np.arange(len(cat_states))
-        width = 0.35
+        for idx, feat_name in enumerate(feats):
+            ax = axes[idx]
+            cat_states = FEATURE_CATEGORIES.get(feat_name, [])
+            if not cat_states:
+                continue
+            x = np.arange(len(cat_states))
+            width = 0.35
 
-        for i, g in enumerate(genders):
-            g_data = merged[merged['gender_clean'] == g]
-            counts = count_states(g_data)
-            vals = []
-            for state in cat_states:
-                match = counts[counts['state'] == state]
-                vals.append(match['avg_count_per_participant'].values[0] if len(match) > 0 else 0)
-            offset = (i - 0.5) * width
-            ax.bar(x + offset, vals, width, label=g, color=gender_colors[g], alpha=0.85)
+            for i, g in enumerate(genders):
+                g_data = merged[merged['gender_clean'] == g]
+                counts = count_states(g_data)
+                vals = []
+                for state in cat_states:
+                    match = counts[counts['state'] == state]
+                    vals.append(match['avg_count_per_participant'].values[0] if len(match) > 0 else 0)
+                offset = (i - 0.5) * width
+                ax.bar(x + offset, vals, width, label=g, color=gender_colors[g], alpha=0.85)
 
-        ax.set_title(f'{cat_name} — Male vs Female', fontsize=13, fontweight='bold')
-        ax.set_ylabel('Avg intervals per participant')
-        ax.set_xticks(x)
-        ax.set_xticklabels([s.split('_')[-1] for s in cat_states], fontsize=10)
-        ax.legend(fontsize=10)
-        ax.grid(axis='y', alpha=0.3)
+            ax.set_title(feat_name, fontsize=12, fontweight='bold')
+            if idx % cols == 0:
+                ax.set_ylabel('Avg intervals/participant')
+            ax.set_xticks(x)
+            ax.set_xticklabels([s.split('_')[-1] for s in cat_states], fontsize=10)
+            if idx == 0:
+                ax.legend(fontsize=10)
+            ax.grid(axis='y', alpha=0.3)
+
+        for idx in range(n_feats, len(axes)):
+            fig.delaxes(axes[idx])
+
+        plt.suptitle(f'{group_name} — Male vs Female', fontsize=14, fontweight='bold', y=1.02)
         plt.tight_layout()
-        plt.savefig(output_dir / f'gender_{cat_name}.png', dpi=150, bbox_inches='tight')
+        plt.savefig(output_dir / f'gender_{group_name}.png', dpi=150, bbox_inches='tight')
         plt.close()
 
-    print(f"  Saved {len(FEATURE_CATEGORIES)} gender comparison charts")
+    print(f"  Saved {len(FEATURE_GROUPS)} gender comparison charts (grouped)")
 
 
 def plot_age_comparison(all_data: pd.DataFrame, demo_df: pd.DataFrame, output_dir: Path):
@@ -185,33 +234,52 @@ def plot_age_comparison(all_data: pd.DataFrame, demo_df: pd.DataFrame, output_di
     age_groups = ['young', 'old']
     age_colors = {'young': '#27ae60', 'old': '#8e44ad'}
 
-    for cat_name, cat_states in FEATURE_CATEGORIES.items():
-        fig, ax = plt.subplots(figsize=(max(8, len(cat_states) * 1.5), 5))
+    for group_name, feats in FEATURE_GROUPS.items():
+        n_feats = len(feats)
+        cols = 3
+        rows = (n_feats + cols - 1) // cols
+        fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 4))
+        if isinstance(axes, np.ndarray):
+            axes = axes.flatten()
+        else:
+            axes = [axes]
 
-        x = np.arange(len(cat_states))
-        width = 0.35
+        for idx, feat_name in enumerate(feats):
+            ax = axes[idx]
+            cat_states = FEATURE_CATEGORIES.get(feat_name, [])
+            if not cat_states:
+                continue
+            x = np.arange(len(cat_states))
+            width = 0.35
 
-        for i, ag in enumerate(age_groups):
-            ag_data = merged[merged['binary_age_group'] == ag]
-            counts = count_states(ag_data)
-            vals = []
-            for state in cat_states:
-                match = counts[counts['state'] == state]
-                vals.append(match['avg_count_per_participant'].values[0] if len(match) > 0 else 0)
-            offset = (i - 0.5) * width
-            ax.bar(x + offset, vals, width, label=ag, color=age_colors[ag], alpha=0.85)
+            for i, ag in enumerate(age_groups):
+                ag_data = merged[merged['binary_age_group'] == ag]
+                counts = count_states(ag_data)
+                vals = []
+                for state in cat_states:
+                    match = counts[counts['state'] == state]
+                    vals.append(match['avg_count_per_participant'].values[0] if len(match) > 0 else 0)
+                offset = (i - 0.5) * width
+                ax.bar(x + offset, vals, width, label=ag, color=age_colors[ag], alpha=0.85)
 
-        ax.set_title(f'{cat_name} — Young (≤25) vs Old (>25)', fontsize=13, fontweight='bold')
-        ax.set_ylabel('Avg intervals per participant')
-        ax.set_xticks(x)
-        ax.set_xticklabels([s.split('_')[-1] for s in cat_states], fontsize=10)
-        ax.legend(fontsize=10)
-        ax.grid(axis='y', alpha=0.3)
+            ax.set_title(feat_name, fontsize=12, fontweight='bold')
+            if idx % cols == 0:
+                ax.set_ylabel('Avg intervals/participant')
+            ax.set_xticks(x)
+            ax.set_xticklabels([s.split('_')[-1] for s in cat_states], fontsize=10)
+            if idx == 0:
+                ax.legend(fontsize=10)
+            ax.grid(axis='y', alpha=0.3)
+
+        for idx in range(n_feats, len(axes)):
+            fig.delaxes(axes[idx])
+
+        plt.suptitle(f'{group_name} — Young (≤25) vs Old (>25)', fontsize=14, fontweight='bold', y=1.02)
         plt.tight_layout()
-        plt.savefig(output_dir / f'age_{cat_name}.png', dpi=150, bbox_inches='tight')
+        plt.savefig(output_dir / f'age_{group_name}.png', dpi=150, bbox_inches='tight')
         plt.close()
 
-    print(f"  Saved {len(FEATURE_CATEGORIES)} age comparison charts")
+    print(f"  Saved {len(FEATURE_GROUPS)} age comparison charts (grouped)")
 
 
 def plot_heatmap(all_data: pd.DataFrame, output_dir: Path):
@@ -268,23 +336,23 @@ def generate_report(output_dir: Path):
 
     lines.append("## Per-Dataset Comparison")
     lines.append("")
-    for cat_name in FEATURE_CATEGORIES:
-        lines.append(f"### {cat_name}")
-        lines.append(f"![{cat_name} dataset](dataset_{cat_name}.png)")
+    for group_name in FEATURE_GROUPS.keys():
+        lines.append(f"### {group_name.replace('_', ' ')}")
+        lines.append(f"![{group_name} dataset](dataset_{group_name}.png)")
         lines.append("")
 
     lines.append("## Gender Comparison (M vs F)")
     lines.append("")
-    for cat_name in FEATURE_CATEGORIES:
-        lines.append(f"### {cat_name}")
-        lines.append(f"![{cat_name} gender](gender_{cat_name}.png)")
+    for group_name in FEATURE_GROUPS.keys():
+        lines.append(f"### {group_name.replace('_', ' ')}")
+        lines.append(f"![{group_name} gender](gender_{group_name}.png)")
         lines.append("")
 
     lines.append("## Age Group Comparison (Young vs Old)")
     lines.append("")
-    for cat_name in FEATURE_CATEGORIES:
-        lines.append(f"### {cat_name}")
-        lines.append(f"![{cat_name} age](age_{cat_name}.png)")
+    for group_name in FEATURE_GROUPS.keys():
+        lines.append(f"### {group_name.replace('_', ' ')}")
+        lines.append(f"![{group_name} age](age_{group_name}.png)")
         lines.append("")
 
     report_text = "\n".join(lines)
