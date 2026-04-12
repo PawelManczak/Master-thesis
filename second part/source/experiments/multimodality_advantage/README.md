@@ -4,5 +4,9 @@ An experiment analyzing the potential advantage of combining multiple physiologi
 
 
 ### Datasets & Annotations
-- **Datasets:** CASE, K-emoCon, CEAP, EmoWorker
-- **Annotations:** Self-annotations (subjective participant ratings)
+This experiment comprehensively processes multiple types of data and annotations across predefined groups:
+- **Self Dimensional:** CASE, K-emoCon, CEAP, EmoWorker (subjective continuous participant ratings).
+- **Self Discrete:** mapped 3x3 label matrices of the aforementioned sets.
+- **External Dimensional:** K-emoCon ext, EMBOA (external observers' ratings).
+- **External Discrete:** mapped 3x3 label matrices of the external sets.
+It subsequently forms major agglomerated baseline evaluations: All Self, All External, and All Combined completely mixing all paradigms.
