@@ -59,7 +59,6 @@ csv_analysis_*.txt
 /second part/source/experiments/results
 /second part/source/experiments/gender_universal_rules/results
 /second part/source/experiments/external_annotations/results
-/second part/source/experiments/self_vs_external/results
 /second part/source/experiments/emotion_labels/results
 /second part/source/latex_paper/ISD-2026-Instructions-for-authors-LaTeX
 *.fdb_latexmk

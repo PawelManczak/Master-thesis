@@ -1,0 +1,21 @@
+rule,self_confidence,ext_confidence,delta_confidence,self_support,ext_support,self_count,ext_count
+(arousal_low) => arousal_low contains eda_std_medium,0.8333,0.75,-0.0833,0.7143,0.75,20,21
+(arousal_low) => arousal_low is-finished-by eda_peaks_high,0.8333,0.6071,-0.2262,0.7143,0.6071,20,17
+(arousal_low) => arousal_low is-finished-by eda_scr_auc_low,0.6667,0.6071,-0.0595,0.5714,0.6071,16,17
+(arousal_low) => arousal_low meets eda_scr_auc_medium,0.8333,0.5714,-0.2619,0.7143,0.5714,20,16
+(eda_high) => eda_high before valence_medium,0.5714,0.8571,0.2857,0.5714,0.8571,16,24
+(eda_max_medium) => eda_max_medium equals valence_medium,0.6786,0.8846,0.206,0.6786,0.8214,19,23
+(eda_medium) => eda_medium meets valence_medium,0.5769,0.875,0.2981,0.5357,0.75,15,21
+(eda_peaks_high) => eda_peaks_high meets valence_medium,0.5714,0.7857,0.2143,0.5714,0.7857,16,22
+(eda_scr_amp_high) => eda_scr_amp_high starts valence_medium,0.6429,0.9286,0.2857,0.6429,0.9286,18,26
+(hrv_cvnn_high) => hrv_cvnn_high meets arousal_medium,0.64,0.7273,0.0873,0.5714,0.5714,16,16
+(hrv_cvnn_medium) => hrv_cvnn_medium meets valence_medium,0.625,0.9545,0.3295,0.5357,0.75,15,21
+(hrv_cvsd_high) => hrv_cvsd_high meets arousal_medium,0.5385,0.6522,0.1137,0.5,0.5357,14,15
+(hrv_cvsd_medium) => hrv_cvsd_medium meets valence_medium,0.8,0.9583,0.1583,0.5714,0.8214,16,23
+(hrv_pnn20_high) => hrv_pnn20_high meets valence_medium,0.6,0.9091,0.3091,0.5357,0.7143,15,20
+(hrv_pnn50_high) => hrv_pnn50_high meets valence_medium,0.5385,0.8261,0.2876,0.5,0.6786,14,19
+(hrv_sdnn_high) => hrv_sdnn_high meets valence_medium,0.5833,0.8571,0.2738,0.5,0.6429,14,18
+(valence_medium) => valence_medium is-finished-by eda_peaks_high,0.75,0.6071,-0.1429,0.75,0.6071,21,17
+(valence_medium) => valence_medium is-finished-by eda_std_low,0.5357,0.5714,0.0357,0.5357,0.5714,15,16
+(valence_medium) => valence_medium meets eda_peaks_medium,0.7857,0.75,-0.0357,0.7857,0.75,22,21
+(valence_medium) => valence_medium meets eda_scr_auc_medium,0.75,0.75,0.0,0.75,0.75,21,21
