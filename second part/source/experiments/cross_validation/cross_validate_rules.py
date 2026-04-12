@@ -21,9 +21,10 @@ from typing import Dict, List, Tuple
 import pandas as pd
 
 SCRIPT_DIR = Path(__file__).parent
-PROJECT_DIR = SCRIPT_DIR.parent.parent
+EXPERIMENTS_DIR = SCRIPT_DIR.parent
+PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
-sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(EXPERIMENTS_DIR))
 
 from armada_algorithm import ARMADA, TemporalRule
 from compare_datasets import (
@@ -35,7 +36,7 @@ from compare_datasets import (
 )
 
 DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
-OUTPUT_DIR = SCRIPT_DIR / "results" / "cross_validation"
+OUTPUT_DIR = SCRIPT_DIR / "results"
 
 DATASETS = {
     'CASE': DATA_DIR / "armada_case.csv",
