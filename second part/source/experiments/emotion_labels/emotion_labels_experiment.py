@@ -437,7 +437,6 @@ def main():
             shared_count = len(disc_results[n1]['filtered'] & disc_results[n2]['filtered'])
             print(f"    {n1} x {n2}: Jaccard={j:.3f}, shared={shared_count}")
 
-    # ===== GENERATE REPORT =====
     lines = []
     lines.append("# Dimensional vs Discrete Emotional Model — Comparison")
     lines.append("")
