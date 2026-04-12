@@ -24,9 +24,6 @@ sys.path.insert(0, str(EXPERIMENTS_DIR))
 
 from demographic_analysis import load_demographics_from_processed
 
-# ============================================================================
-# PATHS
-# ============================================================================
 DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
 OUTPUT_DIR = SCRIPT_DIR / "results"
 
@@ -37,7 +34,6 @@ DATASETS = {
     'EmoWorker_v2': DATA_DIR / "armada_emoworker_v2.csv"
 }
 
-# Feature categories
 FEATURE_CATEGORIES = {
     'arousal': ['arousal_high', 'arousal_medium', 'arousal_low'],
     'valence': ['valence_high', 'valence_medium', 'valence_low'],

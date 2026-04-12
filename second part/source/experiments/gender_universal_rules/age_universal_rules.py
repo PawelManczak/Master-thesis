@@ -24,17 +24,11 @@ PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 sys.path.insert(0, str(EXPERIMENTS_DIR))
 
-# ============================================================================
-# EXPERIMENT PARAMETERS
-# ============================================================================
 MINSUP = 0.1       # 10% minimum support
 MINCONF = 0.1      # 10% minimum confidence
-MAXGAP = 20        # 30s max gap
+MAXGAP = 20
 MAX_PATTERN_SIZE = 2  # max depth 2
 
-# ============================================================================
-# RULE FILTERS
-# ============================================================================
 FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True
 FILTER_PHYSIO_CROSS = False
@@ -377,8 +371,7 @@ def main():
         df_young = save_age_universal_rules_details(universal_young, all_results_young, OUTPUT_DIR, "young")
     if len(universal_old) > 0:
         df_old = save_age_universal_rules_details(universal_old, all_results_old, OUTPUT_DIR, "old")
-        
-    # Write aggregated metrics globally via MD report
+
     generate_markdown_report(
         datasets_count=len(dataset_names),
         stats_data=stats_data,

@@ -6,9 +6,11 @@ Uses RQ1 parameters (minsup=0.5, minconf=0.5, maxgap=5s).
 
 import sys
 from pathlib import Path
-import pandas as pd
-import numpy as np
+
 import matplotlib
+import numpy as np
+import pandas as pd
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import itertools
@@ -39,12 +41,12 @@ FILTER_SINGLE_FEATURE = True
 DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
 
 DATASETS = {
-    "CASE":       DATA_DIR / "armada_case.csv",
-    "K-emoCon":   DATA_DIR / "armada_k_emocon.csv",
-    "CEAP":       DATA_DIR / "armada_ceap.csv",
-    "EmoWorker":  DATA_DIR / "armada_emoworker_v2.csv",
+    "CASE": DATA_DIR / "armada_case.csv",
+    "K-emoCon": DATA_DIR / "armada_k_emocon.csv",
+    "CEAP": DATA_DIR / "armada_ceap.csv",
+    "EmoWorker": DATA_DIR / "armada_emoworker_v2.csv",
     "K-emo\n(ext)": DATA_DIR / "armada_k_emocon_ext.csv",
-    "EMBOA":      DATA_DIR / "armada_emboa.csv",
+    "EMBOA": DATA_DIR / "armada_emboa.csv",
 }
 
 OUTPUT_DIR = Path(__file__).parent / "results"
@@ -58,7 +60,7 @@ def main():
         print(f"Processing {name}...")
         df = pd.read_csv(path)
         armada, patterns, rules = run_armada_on_df(df, MINSUP, MINCONF, MAXGAP, MAX_PATTERN_SIZE)
-        
+
         raw_sigs = extract_rule_signatures(rules)
         filtered = filter_rules(raw_sigs, FILTER_BVP_ONLY, FILTER_EDA_ONLY,
                                 FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
@@ -66,7 +68,7 @@ def main():
         print(f"  {name}: {len(filtered)} filtered rules")
 
     names = list(results.keys())
-    
+
     # Generate all pairs
     pairs = list(itertools.combinations(names, 2))
     n_rows = len(pairs)
@@ -85,7 +87,7 @@ def main():
 
     cmap = plt.cm.YlOrRd
     off_diag = matrix.copy().astype(float)
-    
+
     # Mask exactly when the column dataset is PART of the row pair
     for i, (ds1, ds2) in enumerate(pairs):
         for j, target_ds in enumerate(names):
@@ -101,7 +103,7 @@ def main():
         for j, target_ds in enumerate(names):
             if target_ds in (ds1, ds2):
                 ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1,
-                                            fill=True, color='#e0e0e0', zorder=2))
+                                           fill=True, color='#e0e0e0', zorder=2))
 
     # Add text annotations
     for i in range(n_rows):
@@ -126,7 +128,7 @@ def main():
     row_labels = [p[0].replace('\n', ' ') + ' + ' + p[1].replace('\n', ' ') for p in pairs]
     ax.set_yticks(range(n_rows))
     ax.set_yticklabels(row_labels, fontsize=10, va='center')
-    
+
     col_labels = [n.replace('\n', ' ') for n in names]
     ax.set_xticks(range(n_cols))
     ax.set_xticklabels(col_labels, fontsize=10, ha='right', rotation=45)
@@ -151,7 +153,7 @@ def main():
     out_png = OUTPUT_DIR / "heatmap_pairs_generalization.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     print(f"Saved PNG to {out_png}")
-    
+
     # Print the top triplets for the report
     print("\nTop 5 Generalizing Triplets:")
     triplets = []
@@ -163,10 +165,11 @@ def main():
                     'target': target_ds.replace('\n', ' '),
                     'rules': matrix[i][j]
                 })
-    
+
     triplet_df = pd.DataFrame(triplets)
     triplet_df = triplet_df.sort_values(by='rules', ascending=False).head(5)
     print(triplet_df.to_string(index=False))
+
 
 if __name__ == "__main__":
     main()

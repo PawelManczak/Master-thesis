@@ -177,8 +177,7 @@ def main():
     plot_path = OUTPUT_DIR / "multimodality_advantage.png"
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     print(f"\nSaved plot to {plot_path}")
-    
-    # Print LaTeX table snippet
+
     print("\n--- LaTeX Table Snippet ---")
     print(r"\begin{table}[!ht]")
     print(r"\centering")

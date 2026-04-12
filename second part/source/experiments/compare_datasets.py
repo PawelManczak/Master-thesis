@@ -8,13 +8,13 @@ Compare ARMADA patterns between datasets.
 4. Generates a comparison report.
 """
 
+import json
 import sys
 from pathlib import Path
-import pandas as pd
-import json
-from collections import defaultdict
 from typing import Dict, List, Set, Tuple
+
 import matplotlib.pyplot as plt
+import pandas as pd
 
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_DIR = SCRIPT_DIR.parent.parent
@@ -22,18 +22,11 @@ sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 
 from armada_algorithm import ARMADA
 
+MINSUP = 0.3
+MINCONF = 0.5
+MAXGAP = 5
+MAX_PATTERN_SIZE = 3
 
-# ============================================================================
-# EXPERIMENT PARAMETERS
-# ============================================================================
-MINSUP = 0.3       # 20% minimum support
-MINCONF = 0.5      # 30% minimum confidence
-MAXGAP = 5       # 60s max gap
-MAX_PATTERN_SIZE = 3  # max depth 2
-
-# ============================================================================
-# RULE FILTERS
-# ============================================================================
 # True -> reject rules where ALL states are BVP/HRV/HR-related
 FILTER_BVP_ONLY = True
 
@@ -46,7 +39,6 @@ FILTER_PHYSIO_CROSS = True
 # True -> reject rules where all states are of the same feature type
 FILTER_SINGLE_FEATURE = True
 
-# Import experiment_utils
 from experiment_utils import (
     run_armada_on_df,
     extract_rule_signatures,
@@ -134,7 +126,6 @@ def create_comparison_visualizations(
     ax1 = axes[0]
     ds_names = list(patterns_dict.keys())
     counts = [len(patterns_dict[ds]) for ds in ds_names]
-    # Colors
     colors = ['#3498db', '#e74c3c', '#2ecc71', '#9b59b6']
     if len(ds_names) > len(colors):
         colors = colors * (len(ds_names) // len(colors) + 1)
@@ -159,7 +150,6 @@ def create_comparison_visualizations(
             common_all &= patterns_dict[ds]
         count_common_all = len(common_all)
 
-        # Prepare chart data
         labels = [f"Unique\n{ds}" for ds in datasets] + ["Common\nALL"]
         values = [unique_counts[ds] for ds in datasets] + [count_common_all]
 
@@ -217,7 +207,6 @@ def save_common_patterns_details(
                     supports.append(p.support)
                     break
 
-        # Average support
         if supports:
             entry["avg_support"] = round(sum(supports) / len(supports), 4)
             entry["min_support"] = round(min(supports), 4)
@@ -226,7 +215,6 @@ def save_common_patterns_details(
 
     df = pd.DataFrame(details)
 
-    # Sort by average support
     if 'avg_support' in df.columns:
         df = df.sort_values('avg_support', ascending=False)
 
@@ -240,7 +228,6 @@ def save_common_rules_details(
     all_results: Dict[str, Tuple],
     output_dir: Path
 ) -> pd.DataFrame:
-    """Saves details of common rules."""
     details = []
 
     for rule_sig in sorted(common_rules):
@@ -283,7 +270,6 @@ def generate_markdown_report(
     common_rules_df: pd.DataFrame,
     output_dir: Path
 ) -> None:
-    """Generates Markdown report."""
 
     lines = []
     lines.append("# ARMADA Patterns Comparison Between Datasets")
@@ -303,7 +289,6 @@ def generate_markdown_report(
     lines.append(f"- **FILTER_SINGLE_FEATURE**: {FILTER_SINGLE_FEATURE} - {'rejects single-feature rules (e.g. only arousal)' if FILTER_SINGLE_FEATURE else 'disabled'}")
     lines.append("")
 
-    # Dataset statistics
     lines.append("## Dataset Statistics")
     lines.append("")
     lines.append("| Dataset | Participants | Patterns | Rules | Unique Patterns |")
@@ -316,7 +301,6 @@ def generate_markdown_report(
 
     lines.append("")
 
-    # Comparison
     lines.append("## Datasets Comparison")
     lines.append("")
     common_all = len(patterns_comparison.get('common_all', set()))
@@ -325,7 +309,6 @@ def generate_markdown_report(
     lines.append(f"- **Rules common to ALL datasets**: {common_rules_all}")
     lines.append("")
 
-    # Common patterns
     lines.append("## Common Patterns (All datasets)")
     lines.append("")
 
@@ -333,7 +316,6 @@ def generate_markdown_report(
         lines.append("### Top 20 Common Patterns (by avg_support)")
         lines.append("")
 
-        # Dynamic table header
         header = "| Pattern | Avg Support | " + " | ".join(all_results.keys()) + " |"
         separator = "|---------|-------------|-" + "-|-".join(["-"*len(k) for k in all_results.keys()]) + "-|"
         lines.append(header)
@@ -355,7 +337,6 @@ def generate_markdown_report(
 
     lines.append("")
 
-    # Common rules
     lines.append("## Common Rules (All datasets)")
     lines.append("")
 
@@ -377,7 +358,6 @@ def generate_markdown_report(
 
     lines.append("")
 
-    # Conclusions
     lines.append("## Conclusions")
     lines.append("")
     lines.append("### Repeating Patterns Across Datasets")
@@ -390,7 +370,6 @@ def generate_markdown_report(
 
     lines.append("")
 
-    # Save report
     report_text = "\n".join(lines)
     with open(output_dir / "comparison_report.md", "w") as f:
         f.write(report_text)
@@ -469,7 +448,6 @@ def run_combined_analysis(
 def main():
     """Main experiment function."""
 
-    # Paths
     DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
     OUTPUT_DIR = SCRIPT_DIR / "results"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -483,7 +461,6 @@ def main():
     print(f"Wyniki: {OUTPUT_DIR}")
     print()
 
-    # Datasets
     datasets = {
         'CASE': DATA_DIR / "armada_case.csv",
         'K-emoCon': DATA_DIR / "armada_k_emocon.csv",
@@ -491,14 +468,12 @@ def main():
         'EmoWorker_v2': DATA_DIR / "armada_emoworker_v2.csv"
     }
 
-    # Check if files exist
     for ds_name, data_file in datasets.items():
         if not data_file.exists():
             print(f"ERROR: File {data_file} does not exist!")
             print("Run: python prepare_armada_data.py && python validate_armada_data.py")
             return
 
-    # Run ARMADA on each dataset
     all_results = {}
     patterns_signatures = {}
     rules_signatures = {}
@@ -522,14 +497,12 @@ def main():
         ds_output.mkdir(exist_ok=True)
         armada.save_results(ds_output)
 
-    # Compare patterns and rules
     print("\n" + "=" * 80)
     print("PORÓWNANIE WZORCÓW")
     print("=" * 80)
 
     patterns_comparison = compare_pattern_sets(patterns_signatures)
 
-    # Filter rules before comparison
     filtered_rules_signatures = {}
     for ds_name, rules_set in rules_signatures.items():
         original_count = len(rules_set)
@@ -554,7 +527,6 @@ def main():
         unique = len(patterns_comparison.get(f'unique_{ds}', set()))
         print(f"Wzorce unikalne dla {ds}: {unique}")
 
-    # Save common patterns and rules details
     common_patterns_df = save_common_patterns_details(common_patterns, all_results, OUTPUT_DIR)
 
     # Save common 3+ if common all is empty
@@ -564,10 +536,8 @@ def main():
     else:
         common_rules_df = save_common_rules_details(common_rules, all_results, OUTPUT_DIR)
 
-    # Visualizations
     create_comparison_visualizations(patterns_signatures, patterns_comparison, OUTPUT_DIR)
 
-    # Markdown Report
     generate_markdown_report(
         patterns_comparison, rules_comparison, all_results,
         common_patterns_df, common_rules_df, OUTPUT_DIR
@@ -607,7 +577,6 @@ def main():
     with open(OUTPUT_DIR / "experiment_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
 
-    # Display common patterns
     print("\n" + "=" * 80)
     print("COMMON PATTERNS (all 3 datasets)")
     print("=" * 80)
@@ -629,7 +598,6 @@ def main():
     if len(common_rules_df) > 10:
         print(f"  ... and {len(common_rules_df) - 10} more")
 
-    # Run Combined Analysis
     combined_patterns, combined_rules = run_combined_analysis(
         datasets,
         minsup=MINSUP,
@@ -639,7 +607,6 @@ def main():
         output_dir=OUTPUT_DIR
     )
 
-    # Filter combined rules
     combined_rules_sigs = extract_rule_signatures(combined_rules)
     filtered_combined = filter_rules(combined_rules_sigs, FILTER_BVP_ONLY, FILTER_EDA_ONLY, FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
 

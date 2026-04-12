@@ -32,17 +32,11 @@ PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 sys.path.insert(0, str(EXPERIMENTS_DIR))
 
-# ============================================================================
-# EXPERIMENT PARAMETERS
-# ============================================================================
 MINSUP = 0.5
 MINCONF = 0.5
 MAXGAP = 5
 MAX_PATTERN_SIZE = 2
 
-# ============================================================================
-# RULE FILTERS
-# ============================================================================
 FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True
 FILTER_PHYSIO_CROSS = True  # Reject rules without any emotional component (arousal/valence/emo_*)
@@ -66,9 +60,6 @@ EMOTION_MAP = {
 LOW_THRESH = 0.33
 HIGH_THRESH = 0.66
 
-# ============================================================================
-# DATASET CONFIGURATIONS
-# ============================================================================
 DATA_DIR = PROJECT_DIR / "data"
 
 # Each entry: (name, processed_dir, arousal_scale, valence_scale, annotation_type)

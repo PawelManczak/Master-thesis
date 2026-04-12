@@ -29,23 +29,17 @@ PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 sys.path.insert(0, str(EXPERIMENTS_DIR))
 
-# ============================================================================
-# EXPERIMENT PARAMETERS
-# ============================================================================
+
 MINSUP = 0.1        # 10% minimum support
 MINCONF = 0.1       # 10% minimum confidence
-MAXGAP = 10         # 20s max gap
-MAX_PATTERN_SIZE = 2 # max pattern depth
+MAXGAP = 10
+MAX_PATTERN_SIZE = 2
 
-# ============================================================================
-# RULE FILTERS
-# ============================================================================
 FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True
 FILTER_PHYSIO_CROSS = True
 FILTER_SINGLE_FEATURE = True
 
-# Import experiment utilities
 try:
     from experiment_utils import (
         run_armada_on_df,
@@ -170,7 +164,6 @@ def generate_report(
 
     lines.append("")
 
-    # Universal rules
     lines.append("## Universal Rules (Present in ALL Datasets)")
     lines.append("")
     lines.append(f"Total universal rules found: **{len(universal_rules)}**")
@@ -278,7 +271,6 @@ def main():
         'K-emoCon-ext': DATA_DIR / "armada_k_emocon_ext.csv",
     }
 
-    # Verify input datasets exist
     missing = []
     for ds_name, data_file in datasets.items():
         if not data_file.exists():
@@ -319,7 +311,6 @@ def main():
         print(f"  Total Rules: {len(rules)}")
         print(f"  Rules after filtering: {len(filtered_signatures)}")
 
-    # Find universal rules (intersection)
     print("\n" + "=" * 80)
     print("CALCULATING UNIVERSAL RULES INTERSECTION")
     print("=" * 80)

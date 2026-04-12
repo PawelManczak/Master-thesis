@@ -9,9 +9,11 @@ Reads pre-built discrete ARMADA CSVs from emotion_labels/results/.
 
 import sys
 from pathlib import Path
-import pandas as pd
-import numpy as np
+
 import matplotlib
+import numpy as np
+import pandas as pd
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import itertools
@@ -42,12 +44,12 @@ FILTER_SINGLE_FEATURE = True
 DISCRETE_DIR = SCRIPT_DIR / "emotion_labels" / "results"
 
 DATASETS = {
-    "CASE":       DISCRETE_DIR / "armada_discrete_CASE.csv",
-    "K-emoCon":   DISCRETE_DIR / "armada_discrete_K-emoCon.csv",
-    "CEAP":       DISCRETE_DIR / "armada_discrete_CEAP.csv",
-    "EmoWorker":  DISCRETE_DIR / "armada_discrete_EmoWorker_v2.csv",
+    "CASE": DISCRETE_DIR / "armada_discrete_CASE.csv",
+    "K-emoCon": DISCRETE_DIR / "armada_discrete_K-emoCon.csv",
+    "CEAP": DISCRETE_DIR / "armada_discrete_CEAP.csv",
+    "EmoWorker": DISCRETE_DIR / "armada_discrete_EmoWorker_v2.csv",
     "K-emo (ext)": DISCRETE_DIR / "armada_discrete_K-emoCon_ext.csv",
-    "EMBOA":      DISCRETE_DIR / "armada_discrete_EMBOA.csv",
+    "EMBOA": DISCRETE_DIR / "armada_discrete_EMBOA.csv",
 }
 
 OUTPUT_DIR = SCRIPT_DIR / "results"
@@ -98,7 +100,7 @@ def make_heatmap_pairwise(results, names):
 
     for i in range(n):
         ax.add_patch(plt.Rectangle((i - 0.5, i - 0.5), 1, 1,
-                                    fill=True, color='#e0e0e0', zorder=2))
+                                   fill=True, color='#e0e0e0', zorder=2))
 
     for i in range(n):
         for j in range(n):
@@ -113,15 +115,18 @@ def make_heatmap_pairwise(results, names):
                     color=tc, fontweight=fw, fontsize=fs, zorder=3)
 
     display = [_clean(n) for n in names]
-    ax.set_xticks(range(n)); ax.set_xticklabels(display, fontsize=10)
-    ax.set_yticks(range(n)); ax.set_yticklabels(display, fontsize=10)
+    ax.set_xticks(range(n));
+    ax.set_xticklabels(display, fontsize=10)
+    ax.set_yticks(range(n));
+    ax.set_yticklabels(display, fontsize=10)
     cbar = plt.colorbar(im, ax=ax, shrink=0.8, pad=0.02)
     cbar.set_label('Shared rules', fontsize=10)
     ax.set_title('Pairwise Shared Rules (Discrete Model)', fontsize=13, fontweight='bold', pad=12)
     for s in ax.spines.values(): s.set_visible(True); s.set_color('#cccccc')
     plt.tight_layout()
     out = OUTPUT_DIR / "heatmap_discrete_pairwise.png"
-    plt.savefig(out, dpi=300, bbox_inches='tight'); plt.close()
+    plt.savefig(out, dpi=300, bbox_inches='tight');
+    plt.close()
     print(f"Saved: {out}")
 
 
@@ -159,7 +164,7 @@ def make_heatmap_combo(results, names, combo_size, filename, title, ylabel, xlab
         for j, target in enumerate(names):
             if target in combo:
                 ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1,
-                                            fill=True, color='#e0e0e0', zorder=2))
+                                           fill=True, color='#e0e0e0', zorder=2))
 
     for i in range(n_rows):
         for j in range(n_cols):
@@ -189,14 +194,16 @@ def make_heatmap_combo(results, names, combo_size, filename, title, ylabel, xlab
     col_labels = [_clean(n) for n in names]
     ax.set_xticks(range(n_cols))
     ax.set_xticklabels(col_labels, fontsize=10, ha='right', rotation=45)
-    ax.set_xlabel(xlabel); ax.set_ylabel(ylabel)
+    ax.set_xlabel(xlabel);
+    ax.set_ylabel(ylabel)
     cbar = plt.colorbar(im, ax=ax, pad=0.02)
     cbar.set_label(clabel, fontsize=10)
     ax.set_title(title, fontsize=12, fontweight='bold', pad=15)
     for s in ax.spines.values(): s.set_visible(True); s.set_color('#cccccc')
     plt.tight_layout()
     out = OUTPUT_DIR / filename
-    plt.savefig(out, dpi=300, bbox_inches='tight'); plt.close()
+    plt.savefig(out, dpi=300, bbox_inches='tight');
+    plt.close()
     print(f"Saved: {out}")
 
 
@@ -217,24 +224,24 @@ def main():
 
     # 2. Pairs → 3rd
     make_heatmap_combo(results, names, 2,
-        "heatmap_discrete_pairs_generalization.png",
-        "Pairs → Third Dataset (Discrete Model)",
-        "Dataset Pairs", "Third Dataset",
-        "Shared rules (Triple Intersection)")
+                       "heatmap_discrete_pairs_generalization.png",
+                       "Pairs → Third Dataset (Discrete Model)",
+                       "Dataset Pairs", "Third Dataset",
+                       "Shared rules (Triple Intersection)")
 
     # 3. Triplets → 4th
     make_heatmap_combo(results, names, 3,
-        "heatmap_discrete_triplets_generalization.png",
-        "Triplets → Fourth Dataset (Discrete Model)",
-        "Dataset Triplets", "Fourth Dataset",
-        "Shared rules (Quadruple Intersection)")
+                       "heatmap_discrete_triplets_generalization.png",
+                       "Triplets → Fourth Dataset (Discrete Model)",
+                       "Dataset Triplets", "Fourth Dataset",
+                       "Shared rules (Quadruple Intersection)")
 
     # 4. Quintuplets → 6th
     make_heatmap_combo(results, names, 5,
-        "heatmap_discrete_quintuplets_generalization.png",
-        "Leave-One-Out Quintuplets (Discrete Model)",
-        "Quintuplet (5 Datasets)", "Sixth Dataset",
-        "Shared rules (Full 6-way)")
+                       "heatmap_discrete_quintuplets_generalization.png",
+                       "Leave-One-Out Quintuplets (Discrete Model)",
+                       "Quintuplet (5 Datasets)", "Sixth Dataset",
+                       "Shared rules (Full 6-way)")
 
     print("\nDone! All discrete heatmaps generated.")
 

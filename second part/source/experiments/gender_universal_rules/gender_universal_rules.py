@@ -24,23 +24,16 @@ PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 sys.path.insert(0, str(EXPERIMENTS_DIR))
 
-# ============================================================================
-# EXPERIMENT PARAMETERS
-# ============================================================================
 MINSUP = 0.1       # 10% minimum support
 MINCONF = 0.1      # 10% minimum confidence
-MAXGAP = 20        # 30s max gap
-MAX_PATTERN_SIZE = 2  # max depth 2
+MAXGAP = 20
+MAX_PATTERN_SIZE = 2
 
-# ============================================================================
-# RULE FILTERS
-# ============================================================================
 FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True
 FILTER_PHYSIO_CROSS = False
 FILTER_SINGLE_FEATURE = True
 
-# Imports
 try:
     from experiment_utils import (
         run_armada_on_df,
@@ -128,8 +121,7 @@ def generate_markdown_report(
     lines.append(f"- **maxgap**: {MAXGAP} seconds")
     lines.append(f"- **max_pattern_size**: {MAX_PATTERN_SIZE}")
     lines.append("")
-    
-    # Dataset statistics
+
     lines.append("## Dataset Processing")
     lines.append("")
     
@@ -147,7 +139,6 @@ def generate_markdown_report(
         )
     lines.append("")
 
-    # Universal comparison summary
     common_both = universal_rules_m & universal_rules_f
     unique_m = universal_rules_m - universal_rules_f
     unique_f = universal_rules_f - universal_rules_m
@@ -161,7 +152,6 @@ def generate_markdown_report(
     lines.append(f"- **Universal rules UNIQUELY for Females (F)**: {len(unique_f)}")
     lines.append("")
 
-    # MALE TABLE
     if len(df_m) > 0:
         lines.append(f"### Universal Rules for Males (Top metrics globally)")
         lines.append("")
@@ -200,7 +190,6 @@ def generate_markdown_report(
             lines.append("".join(line_parts))
         lines.append("")
 
-    # FEMALE TABLE
     if len(df_f) > 0:
         lines.append(f"### Universal Rules for Females (Top metrics globally)")
         lines.append("")
@@ -239,7 +228,6 @@ def generate_markdown_report(
             lines.append("".join(line_parts))
         lines.append("")
 
-    # Save report
     report_text = "\n".join(lines)
     with open(output_dir / "gender_universal_rules_report.md", "w") as f:
         f.write(report_text)
@@ -257,11 +245,9 @@ def main():
     print("=" * 80)
     print("EXPERIMENT: GENDER UNIVERSAL RULES DETECTION")
     print("=" * 80)
-    
-    # 1. Load overarching demographic context
+
     print("Loading global demographics mapping...")
     demo_df = load_demographics_from_processed()
-    # Align mapping tags
     demo_df['gender_clean'] = demo_df['gender'].apply(
         lambda x: 'M' if str(x).upper() in ['M', 'MALE', '1', 'MAN'] else
                   ('F' if str(x).upper() in ['F', 'FEMALE', '2', 'WOMAN'] else None)
@@ -274,7 +260,6 @@ def main():
         'EmoWorker_v2': DATA_DIR / "armada_emoworker_v2.csv"
     }
 
-    # Verify existing inputs
     for ds_name, data_file in datasets.items():
         if not data_file.exists():
             print(f"ERROR: Dataset file {data_file} does not exist!")
@@ -285,8 +270,7 @@ def main():
     
     rules_signatures_m = {}
     rules_signatures_f = {}
-    
-    # Metric tracking
+
     stats_data = {}
 
     for ds_name, data_file in datasets.items():
@@ -323,8 +307,7 @@ def main():
             rules_signatures_m[ds_name] = set()
             m_clients = 0
             m_filtered = 0
-            
-        # FEMALE GROUP PROCESSING
+
         if 'F' in groups and len(groups['F']['client_id'].unique()) >= 1:
             print(f"\n  [FEMALE] Running ARMADA for {ds_name}...")
             armada_f, patterns_f, rules_f = run_armada_on_df(groups['F'], MINSUP, MINCONF, MAXGAP, MAX_PATTERN_SIZE)
@@ -368,8 +351,7 @@ def main():
     print(f"\nUniversal Rules across all datasets for MEN (M): {len(universal_m)}")
     print(f"Universal Rules across all datasets for WOMEN (F): {len(universal_f)}")
     print(f"Rules common to BOTH genders globally: {len(universal_m & universal_f)}")
-    
-    # Save CSV outputs
+
     df_m = pd.DataFrame()
     df_f = pd.DataFrame()
     
@@ -377,8 +359,7 @@ def main():
         df_m = save_gender_universal_rules_details(universal_m, all_results_m, OUTPUT_DIR, "male")
     if len(universal_f) > 0:
         df_f = save_gender_universal_rules_details(universal_f, all_results_f, OUTPUT_DIR, "female")
-        
-    # Write aggregated metrics globally via MD report
+
     generate_markdown_report(
         datasets_count=len(dataset_names),
         stats_data=stats_data,

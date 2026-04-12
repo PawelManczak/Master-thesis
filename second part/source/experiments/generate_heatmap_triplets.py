@@ -10,9 +10,11 @@ Grey cells mark when D is already part of the triplet.
 
 import sys
 from pathlib import Path
-import pandas as pd
-import numpy as np
+
 import matplotlib
+import numpy as np
+import pandas as pd
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import itertools
@@ -43,12 +45,12 @@ FILTER_SINGLE_FEATURE = True
 DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
 
 DATASETS = {
-    "CASE":       DATA_DIR / "armada_case.csv",
-    "K-emoCon":   DATA_DIR / "armada_k_emocon.csv",
-    "CEAP":       DATA_DIR / "armada_ceap.csv",
-    "EmoWorker":  DATA_DIR / "armada_emoworker_v2.csv",
+    "CASE": DATA_DIR / "armada_case.csv",
+    "K-emoCon": DATA_DIR / "armada_k_emocon.csv",
+    "CEAP": DATA_DIR / "armada_ceap.csv",
+    "EmoWorker": DATA_DIR / "armada_emoworker_v2.csv",
     "K-emo (ext)": DATA_DIR / "armada_k_emocon_ext.csv",
-    "EMBOA":      DATA_DIR / "armada_emboa.csv",
+    "EMBOA": DATA_DIR / "armada_emboa.csv",
 }
 
 OUTPUT_DIR = Path(__file__).parent / "results"
@@ -115,7 +117,7 @@ def main():
         for j, target_ds in enumerate(names):
             if target_ds in tri:
                 ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1,
-                                            fill=True, color='#e0e0e0', zorder=2))
+                                           fill=True, color='#e0e0e0', zorder=2))
 
     # Add text annotations
     for i in range(n_rows):

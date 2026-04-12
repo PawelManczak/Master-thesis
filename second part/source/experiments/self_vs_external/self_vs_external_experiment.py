@@ -32,25 +32,16 @@ PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 sys.path.insert(0, str(EXPERIMENTS_DIR))
 
-# ============================================================================
-# EXPERIMENT PARAMETERS
-# ============================================================================
 MINSUP = 0.5
 MINCONF = 0.5
 MAXGAP = 5
 MAX_PATTERN_SIZE = 2
 
-# ============================================================================
-# RULE FILTERS
-# ============================================================================
 FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True
 FILTER_PHYSIO_CROSS = True
 FILTER_SINGLE_FEATURE = True
 
-# ============================================================================
-# DATASETS
-# ============================================================================
 DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
 
 SELF_DATASETS = {
@@ -145,9 +136,7 @@ def process_dataset_group(datasets: dict) -> dict:
 
 
 def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> None:
-    """Generates a comprehensive comparison report."""
 
-    # Union of all self rules and all external rules
     all_self_rules = set()
     for r in self_results.values():
         all_self_rules |= r['filtered']
@@ -172,7 +161,6 @@ def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> 
     lines.append("**External-annotated datasets**: " + ", ".join(ext_results.keys()))
     lines.append("")
 
-    # Parameters
     lines.append("## Parameters")
     lines.append("")
     lines.append(f"| Parameter | Value |")
@@ -183,7 +171,6 @@ def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> 
     lines.append(f"| max_pattern_size | {MAX_PATTERN_SIZE} |")
     lines.append("")
 
-    # Per-dataset stats
     lines.append("## Per-Dataset Statistics")
     lines.append("")
     lines.append("### Self-Annotated Datasets")
@@ -202,7 +189,6 @@ def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> 
         lines.append(f"| {name} | {r['n_participants']} | {r['n_raw']} | {r['n_filtered']} |")
     lines.append("")
 
-    # Overall comparison
     lines.append("## Overall Comparison (Union of All Rules)")
     lines.append("")
     lines.append("| Metric | Value |")
@@ -215,7 +201,6 @@ def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> 
     lines.append(f"| Jaccard similarity | {jaccard_all:.3f} |")
     lines.append("")
 
-    # K-emoCon controlled comparison
     if "K-emoCon" in self_results and "K-emoCon (ext)" in ext_results:
         kemo_self = self_results["K-emoCon"]['filtered']
         kemo_ext = ext_results["K-emoCon (ext)"]['filtered']
@@ -238,7 +223,6 @@ def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> 
         lines.append(f"| Jaccard similarity | \\multicolumn{{2}}{{c|}}{{{kemo_jaccard:.3f}}} |")
         lines.append("")
 
-        # Shared rules with confidence comparison
         if kemo_shared:
             lines.append("### K-emoCon Shared Rules")
             lines.append("")
@@ -269,7 +253,6 @@ def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> 
             lines.append(f"- Rules with similar confidence (|Δ| ≤ 0.05): {similar}")
             lines.append("")
 
-    # Cross-dataset pairwise Jaccard matrix
     lines.append("## Pairwise Jaccard Similarity Matrix")
     lines.append("")
     all_datasets = {}
@@ -292,7 +275,6 @@ def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> 
         lines.append(row)
     lines.append("")
 
-    # Shared rules across ALL datasets
     if shared_all:
         lines.append("## Shared Rules (present in both self and external unions)")
         lines.append("")
@@ -306,7 +288,6 @@ def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> 
             lines.append(f"| `{sig}` | {', '.join(self_present)} | {', '.join(ext_present)} |")
         lines.append("")
 
-    # Self-only rules
     if self_only_all:
         lines.append("## Self-Only Rules")
         lines.append("")
@@ -317,7 +298,6 @@ def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> 
             lines.append(f"- `{sig}` (in: {', '.join(present_in)})")
         lines.append("")
 
-    # External-only rules
     if ext_only_all:
         lines.append("## External-Only Rules")
         lines.append("")
@@ -328,7 +308,6 @@ def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> 
             lines.append(f"- `{sig}` (in: {', '.join(present_in)})")
         lines.append("")
 
-    # Save
     report_text = "\n".join(lines)
     report_path = output_dir / "self_vs_external_report.md"
     with open(report_path, "w") as f:
@@ -347,7 +326,6 @@ def main():
     print(f"Results: {OUTPUT_DIR}")
     print()
 
-    # Verify all files exist
     print("Self-annotated datasets:")
     for name, path in SELF_DATASETS.items():
         status = "OK" if path.exists() else "MISSING"
@@ -358,7 +336,6 @@ def main():
         status = "OK" if path.exists() else "MISSING"
         print(f"  [{status}] {name}: {path.name}")
 
-    # Process all datasets
     print("\n" + "=" * 80)
     print("PROCESSING SELF-ANNOTATED DATASETS")
     print("=" * 80)
@@ -369,7 +346,6 @@ def main():
     print("=" * 80)
     ext_results = process_dataset_group(EXTERNAL_DATASETS)
 
-    # Summary
     all_self = set()
     for r in self_results.values():
         all_self |= r['filtered']
@@ -393,10 +369,8 @@ def main():
     print(f"  External-only:               {len(all_ext - all_self)}")
     print(f"  Jaccard similarity:          {jaccard:.3f}")
 
-    # Generate report
     generate_report(self_results, ext_results, OUTPUT_DIR)
 
-    # Print top shared rules
     if shared:
         print(f"\nTOP SHARED RULES (alphabetical, max 15):")
         for sig in sorted(shared)[:15]:

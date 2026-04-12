@@ -23,18 +23,15 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Paths
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_DIR = SCRIPT_DIR.parent.parent  # second part/
 
-# Add processing modules path
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "extracting"))
 
 from armada_algorithm import ARMADA, TemporalRule, TemporalPattern
 from experiment_utils import run_armada_on_df, extract_rule_signatures, jaccard_similarity
 
-# ARMADA parameters (same as in compare_datasets.py)
 MINSUP = 0.05
 MINCONF = 0.20
 MAXGAP = 30
@@ -50,7 +47,6 @@ PROCESSED_DIRS = {
 
 OUTPUT_DIR = SCRIPT_DIR / "results" / "demographic"
 
-# Age groups
 AGE_GROUP_YOUNG = 'young'  # <= 25
 AGE_GROUP_OLD = 'old'      # > 25
 
@@ -192,7 +188,6 @@ def compare_groups(
         unique = sigs - others
         print(f"  Rules unique to {name}: {len(unique)}")
 
-    # Save results
     results = []
     for rule_sig in sorted(all_rules):
         entry = {'rule': rule_sig}
@@ -212,7 +207,6 @@ def compare_groups(
     results_df = pd.DataFrame(results)
     results_df.to_csv(output_dir / f"rules_comparison_{comparison_name}.csv", index=False)
 
-    # Save Jaccard matrix
     jaccard_matrix.to_csv(output_dir / f"jaccard_matrix_{comparison_name}.csv")
 
     return results_df
@@ -443,7 +437,6 @@ def generate_report(
     exp4_df: Optional[pd.DataFrame],
     output_dir: Path
 ):
-    """Generates final Markdown report."""
     lines = []
     lines.append("# Demographic analysis of ARMADA patterns")
     lines.append("")
@@ -454,7 +447,6 @@ def generate_report(
     lines.append(f"- **max_pattern_size**: {MAX_PATTERN_SIZE}")
     lines.append("")
 
-    # Demographics
     lines.append("## Demographic data")
     lines.append("")
     lines.append(f"- Total participants: {len(demo_df)}")
@@ -495,7 +487,6 @@ def generate_report(
 
 
 def main():
-    """Main function for demographic experiments."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 80)

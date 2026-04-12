@@ -20,12 +20,13 @@ EXPERIMENTS_DIR = PROJECT_DIR / "source" / "experiments"
 
 PYTHON = sys.executable
 
+
 def run_script(script_path: Path, label: str):
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"  RUNNING: {label}")
     print(f"  Script:  {script_path}")
-    print(f"{'='*80}\n")
-    
+    print(f"{'=' * 80}\n")
+
     result = subprocess.run(
         [PYTHON, str(script_path)],
         cwd=str(script_path.parent),
@@ -38,18 +39,18 @@ def run_script(script_path: Path, label: str):
 
 
 def main():
-    print("="*80)
+    print("=" * 80)
     print("  FULL PIPELINE RE-RUN (with all-personal normalization)")
-    print("="*80)
+    print("=" * 80)
 
     steps = [
-        (ARMADA_DIR / "prepare_armada_data.py",                    "Step 1/6: Prepare self-annotated ARMADA data"),
-        (ARMADA_DIR / "prepare_external_annotations_armada.py",    "Step 2/6: Prepare external-annotated ARMADA data"),
+        (ARMADA_DIR / "prepare_armada_data.py", "Step 1/6: Prepare self-annotated ARMADA data"),
+        (ARMADA_DIR / "prepare_external_annotations_armada.py", "Step 2/6: Prepare external-annotated ARMADA data"),
         (EXPERIMENTS_DIR / "self_vs_external" / "self_vs_external_experiment.py",
-                                                                    "Step 3/6: RQ1.1 — Self vs External"),
+         "Step 3/6: RQ1.1 — Self vs External"),
         (EXPERIMENTS_DIR / "emotion_labels" / "emotion_labels_experiment.py",
-                                                                    "Step 4/6: RQ1.2 — Dimensional vs Discrete"),
-        (EXPERIMENTS_DIR / "universal_rules" / "universal_rules.py","Step 5/6: RQ2 — Universal Rules"),
+         "Step 4/6: RQ1.2 — Dimensional vs Discrete"),
+        (EXPERIMENTS_DIR / "universal_rules" / "universal_rules.py", "Step 5/6: RQ2 — Universal Rules"),
     ]
 
     # Check for demographic scripts
@@ -69,9 +70,9 @@ def main():
             print(f"\n  Pipeline stopped at: {label}")
             sys.exit(1)
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("  ALL EXPERIMENTS COMPLETED SUCCESSFULLY")
-    print("="*80)
+    print("=" * 80)
 
 
 if __name__ == "__main__":

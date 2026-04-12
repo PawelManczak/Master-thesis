@@ -9,8 +9,9 @@ This script:
 """
 
 import json
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 import pandas as pd
 
 SCRIPT_DIR = Path(__file__).parent
@@ -39,7 +40,7 @@ def interpret_pattern(pattern: str) -> str:
     """Interprets a pattern in natural language."""
 
     state_descriptions = {
-             'arousal_low': 'low emotional arousal (relaxation, sleepiness)',
+        'arousal_low': 'low emotional arousal (relaxation, sleepiness)',
         'arousal_medium': 'moderate arousal (normal alertness)',
         'arousal_high': 'high arousal (excitement or stress)',
 
@@ -144,7 +145,8 @@ def generate_methodology_section(summary: dict) -> str:
     lines.append(f"| minsup | {params.get('minsup', 'N/A')} | Minimum percentage of participants with the pattern |")
     lines.append(f"| minconf | {params.get('minconf', 'N/A')} | Minimum rule confidence |")
     lines.append(f"| maxgap | {params.get('maxgap', 'N/A')}s | Maximum gap between states |")
-    lines.append(f"| max_pattern_size | {params.get('max_pattern_size', 'N/A')} | Maximum number of states in a pattern |")
+    lines.append(
+        f"| max_pattern_size | {params.get('max_pattern_size', 'N/A')} | Maximum number of states in a pattern |")
     lines.append("")
     lines.append("### Rule filters")
     lines.append("")
@@ -155,7 +157,8 @@ def generate_methodology_section(summary: dict) -> str:
         lines.append("- BVP-only filter disabled")
 
     if filters.get('filter_single_feature', False):
-        lines.append("- **Filtered single-feature rules** - rules describing only one feature (e.g. arousal) were removed")
+        lines.append(
+            "- **Filtered single-feature rules** - rules describing only one feature (e.g. arousal) were removed")
     else:
         lines.append("- Single-feature filter disabled")
 
@@ -210,9 +213,9 @@ def generate_datasets_section(summary: dict) -> str:
         pct = (unique / total * 100) if total > 0 else 0
 
         lines.append(f"| **{ds_name}** | {ds_data.get('num_clients', 'N/A')} | "
-                    f"{ds_data.get('total_patterns', 'N/A')} | "
-                    f"{ds_data.get('total_rules', 'N/A')} | "
-                    f"{unique} ({pct:.1f}%) |")
+                     f"{ds_data.get('total_patterns', 'N/A')} | "
+                     f"{ds_data.get('total_rules', 'N/A')} | "
+                     f"{unique} ({pct:.1f}%) |")
 
     lines.append("")
     lines.append("### Datasets description")
@@ -369,7 +372,6 @@ def generate_conclusions_section(summary: dict, patterns_df: pd.DataFrame, rules
         lines.append("3. Validation of affective computing systems")
         lines.append("")
 
-
     return "\n".join(lines)
 
 
@@ -433,4 +435,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\nError: {e}")
         raise
-

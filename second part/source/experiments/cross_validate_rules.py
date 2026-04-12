@@ -14,13 +14,12 @@ Combinations:
 """
 
 import sys
-from pathlib import Path
-import pandas as pd
-import json
 from collections import defaultdict
-from typing import Dict, List, Set, Tuple
+from pathlib import Path
+from typing import Dict, List, Tuple
 
-# Add modules path
+import pandas as pd
+
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_DIR = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
@@ -35,20 +34,16 @@ from compare_datasets import (
     FILTER_BVP_ONLY, FILTER_EDA_ONLY, FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE,
 )
 
-
-# ============================================================================
-# CONFIGURATION
-# ============================================================================
 DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
 OUTPUT_DIR = SCRIPT_DIR / "results" / "cross_validation"
 
-# Updated with EmoWorker_v2
 DATASETS = {
     'CASE': DATA_DIR / "armada_case.csv",
     'K-emoCon': DATA_DIR / "armada_k_emocon.csv",
     'CEAP': DATA_DIR / "armada_ceap.csv",
     'EmoWorker_v2': DATA_DIR / "armada_emoworker_v2.csv",
 }
+
 
 def generate_combinations(datasets: List[str]) -> List[Tuple[List[str], str]]:
     """Generates (Train Sets) -> Test Set (Leave-One-Out) combinations."""
@@ -77,8 +72,6 @@ def get_rule_details(rules: List[TemporalRule]) -> Dict[str, Dict]:
 
 
 def run_cross_validation():
-    """Main cross-validation experiment function."""
-
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 90)
@@ -323,7 +316,6 @@ def run_cross_validation():
                  f"PHYSIO_CROSS={FILTER_PHYSIO_CROSS}, SINGLE_FEATURE={FILTER_SINGLE_FEATURE}")
     lines.append("")
 
-    # Dataset stats
     lines.append("## Dataset Statistics")
     lines.append("")
     lines.append("| Dataset | Participants | Rules (raw) | Rules (filtered) |")
@@ -333,13 +325,11 @@ def run_cross_validation():
         lines.append(f"| {ds} | {armada.num_clients} | {len(rules)} | {len(all_rule_sigs[ds])} |")
     lines.append("")
 
-    # Summary table
     lines.append("## Cross-Validation Results")
     lines.append("")
     lines.append(summary_df.to_markdown(index=False))
     lines.append("")
 
-    # Top universal rules
     lines.append("## Top 20 Universal Rules (by dataset count and conf)")
     lines.append("")
     if len(universal_df) > 0:
@@ -353,6 +343,6 @@ def run_cross_validation():
 
     print(f"Report saved to: {OUTPUT_DIR / 'report.md'}")
 
+
 if __name__ == "__main__":
     run_cross_validation()
-
