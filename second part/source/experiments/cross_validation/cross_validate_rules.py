@@ -24,6 +24,7 @@ SCRIPT_DIR = Path(__file__).parent
 EXPERIMENTS_DIR = SCRIPT_DIR.parent
 PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
+sys.path.insert(0, str(EXPERIMENTS_DIR / "dataset_comparison"))
 sys.path.insert(0, str(EXPERIMENTS_DIR))
 
 from armada_algorithm import ARMADA, TemporalRule

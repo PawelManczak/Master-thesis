@@ -54,12 +54,13 @@ def main():
     ]
 
     # Check for demographic scripts
-    gender_script = EXPERIMENTS_DIR / "gender_universal_rules" / "gender_universal_rules.py"
-    age_script = EXPERIMENTS_DIR / "gender_universal_rules" / "age_universal_rules.py"
-    if gender_script.exists():
-        steps.append((gender_script, "Step 6a/6: RQ2.1/2.2 — Gender Universal Rules"))
-    if age_script.exists():
-        steps.append((age_script, "Step 6b/6: RQ2.1/2.2 — Age Universal Rules"))
+    demo_analysis_script = EXPERIMENTS_DIR / "demographics" / "demographic_analysis.py"
+    demo_universal_script = EXPERIMENTS_DIR / "demographics" / "demographic_universal_rules.py"
+    
+    if demo_analysis_script.exists():
+        steps.append((demo_analysis_script, "Step 6a/6: RQ2.1/2.2 — Demographic Global Analysis"))
+    if demo_universal_script.exists():
+        steps.append((demo_universal_script, "Step 6b/6: RQ2.1/2.2 — Demographic Universal Rules"))
 
     for script, label in steps:
         if not script.exists():

@@ -24,10 +24,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 SCRIPT_DIR = Path(__file__).parent
-PROJECT_DIR = SCRIPT_DIR.parent.parent  # second part/
+EXPERIMENTS_DIR = SCRIPT_DIR.parent
+PROJECT_DIR = EXPERIMENTS_DIR.parent.parent  # second part/
 
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "extracting"))
+sys.path.insert(0, str(EXPERIMENTS_DIR))
 
 from armada_algorithm import ARMADA, TemporalRule, TemporalPattern
 from experiment_utils import run_armada_on_df, extract_rule_signatures, jaccard_similarity
@@ -45,7 +47,7 @@ PROCESSED_DIRS = {
     'EmoWorker_v2': PROJECT_DIR / "data" / "EmoWorker_v2" / "processed",
 }
 
-OUTPUT_DIR = SCRIPT_DIR / "results" / "demographic"
+OUTPUT_DIR = SCRIPT_DIR / "results"
 
 AGE_GROUP_YOUNG = 'young'  # <= 25
 AGE_GROUP_OLD = 'old'      # > 25

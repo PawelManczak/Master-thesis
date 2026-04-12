@@ -17,8 +17,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 SCRIPT_DIR = Path(__file__).parent
-PROJECT_DIR = SCRIPT_DIR.parent.parent
+EXPERIMENTS_DIR = SCRIPT_DIR.parent
+PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
+sys.path.insert(0, str(EXPERIMENTS_DIR))
 
 from armada_algorithm import ARMADA
 
