@@ -30,10 +30,10 @@ from experiment_utils import (
 )
 
 # Parameters (same as RQ1)
-MINSUP = 0.5
+MINSUP = 0.3
 MINCONF = 0.5
 MAXGAP = 5
-MAX_PATTERN_SIZE = 2
+MAX_PATTERN_SIZE = 4
 
 FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True
