@@ -12,12 +12,12 @@
 - With gender data: 121
 - With age data: 121
 
-| Dataset | Participants | With gender | With age |
-|---------|--------------|-------------|----------|
-| CASE | 30 | 30 | 30 |
-| K-emoCon | 28 | 28 | 28 |
-| CEAP | 32 | 32 | 32 |
-| EmoWorker_v2 | 31 | 31 | 31 |
+| Dataset | Participants | Female | Male | Age Range | Young | Old |
+|---------|--------------|--------|------|-----------|-------|-----|
+| CASE | 30 | 15 | 15 | 22-37 | 10 | 20 |
+| CEAP | 32 | 16 | 16 | 18-33 | 19 | 13 |
+| EmoWorker_v2 | 31 | 7 | 24 | 19-54 | 7 | 24 |
+| K-emoCon | 28 | 12 | 16 | 19-30 | 24 | 4 |
 
 ## Experiment 1: M vs F
 

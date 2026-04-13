@@ -80,6 +80,14 @@ def load_demographics_from_processed() -> pd.DataFrame:
 
                 if 'gender' in df.columns:
                     gender = df['gender'].iloc[0]
+                    if pd.notna(gender):
+                        g_str = str(gender).strip().upper()
+                        if g_str in ['M', 'MALE', '1', 'MAN']:
+                            gender = 'M'
+                        elif g_str in ['F', 'FEMALE', '2', 'WOMAN']:
+                            gender = 'F'
+                        else:
+                            gender = None
                 if 'age' in df.columns:
                     age = df['age'].iloc[0]
                 if 'age_group' in df.columns:
@@ -460,11 +468,24 @@ def generate_report(
     lines.append(f"- With age data: {n_with_age}")
     lines.append("")
 
-    lines.append("| Dataset | Participants | With gender | With age |")
-    lines.append("|---------|--------------|-------------|----------|")
-    for ds in demo_df['dataset'].unique():
+    lines.append("| Dataset | Participants | Female | Male | Age Range | Young | Old |")
+    lines.append("|---------|--------------|--------|------|-----------|-------|-----|")
+    for ds in sorted(demo_df['dataset'].unique()):
         ds_data = demo_df[demo_df['dataset'] == ds]
-        lines.append(f"| {ds} | {len(ds_data)} | {ds_data['gender'].notna().sum()} | {ds_data['age'].notna().sum()} |")
+        
+        n_female = (ds_data['gender'] == 'F').sum()
+        n_male = (ds_data['gender'] == 'M').sum()
+        
+        n_young = (ds_data['binary_age_group'] == 'young').sum() if 'binary_age_group' in ds_data.columns else 0
+        n_old = (ds_data['binary_age_group'] == 'old').sum() if 'binary_age_group' in ds_data.columns else 0
+        
+        ages = ds_data['age'].dropna()
+        if len(ages) > 0:
+            age_range = f"{ages.min():.0f}-{ages.max():.0f}"
+        else:
+            age_range = "N/A"
+
+        lines.append(f"| {ds} | {len(ds_data)} | {n_female} | {n_male} | {age_range} | {n_young} | {n_old} |")
     lines.append("")
 
     # Experiments
@@ -512,6 +533,18 @@ def main():
 
     # Summary per dataset
     print("\n--- Demographic summary per dataset ---")
+    
+    print("\nBreakdown of Men and Women by Dataset:")
+    gender_table = demo_df.groupby(['dataset', 'gender']).size().unstack(fill_value=0)
+    if 'F' not in gender_table.columns:
+        gender_table['F'] = 0
+    if 'M' not in gender_table.columns:
+        gender_table['M'] = 0
+    gender_table = gender_table[['F', 'M']]
+    gender_table = gender_table.rename(columns={'F': 'Female', 'M': 'Male'})
+    print(gender_table.to_string())
+    print()
+
     for ds in demo_df['dataset'].unique():
         ds_data = demo_df[demo_df['dataset'] == ds]
         n_gender = ds_data['gender'].notna().sum()
