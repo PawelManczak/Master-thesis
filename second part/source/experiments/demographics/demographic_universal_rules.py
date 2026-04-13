@@ -57,20 +57,25 @@ def save_universal_rules_details(
     for rule_sig in sorted(universal_rules):
         entry = {"rule": rule_sig}
         confidences = []
+        lifts = []
         supports = []
         for ds_name, (armada, patterns, rules) in all_results.items():
             for r in rules:
                 sig = f"{r.antecedent.get_relation_description()} => {r.consequent.get_relation_description()}"
                 if sig == rule_sig:
                     entry[f"{ds_name}_confidence"] = round(r.confidence, 4)
+                    entry[f"{ds_name}_lift"] = round(r.lift, 4)
                     entry[f"{ds_name}_support"] = round(r.support, 4)
                     entry[f"{ds_name}_count"] = r.consequent.support_count
                     confidences.append(r.confidence)
+                    lifts.append(r.lift)
                     supports.append(r.support)
                     break
         if confidences:
             entry["avg_confidence"] = round(sum(confidences) / len(confidences), 4)
+            entry["avg_lift"] = round(sum(lifts) / len(lifts), 4)
             entry["min_confidence"] = round(min(confidences), 4)
+            entry["min_lift"] = round(min(lifts), 4)
             entry["avg_support"] = round(sum(supports) / len(supports), 4)
             entry["min_support"] = round(min(supports), 4)
         details.append(entry)
@@ -130,15 +135,17 @@ def generate_markdown_report(
             lines.append(f"### Universal Rules for {tag} (Top metrics globally)")
             lines.append("")
             ds_headers = " | ".join(dataset_names)
-            header = f"| Rule | Avg Conf | Avg Sup | Min Conf | Min Sup | {ds_headers} |"
-            separator = "|---|---|---|---|---|" + "|".join(["---" for _ in dataset_names]) + "|"
+            header = f"| Rule | Avg Conf | Avg Lift | Avg Sup | Min Conf | Min Lift | Min Sup | {ds_headers} |"
+            separator = "|---|---|---|---|---|---|---|" + "|".join(["---" for _ in dataset_names]) + "|"
             lines.append(header)
             lines.append(separator)
 
             for _, row in current_df.iterrows():
                 avg_conf = f"{row.get('avg_confidence', 0):.3f}"
+                avg_lift = f"{row.get('avg_lift', 0):.3f}"
                 avg_sup = f"{row.get('avg_support', 0):.3f}"
                 min_conf = f"{row.get('min_confidence', 0):.3f}"
+                min_lift = f"{row.get('min_lift', 0):.3f}"
                 min_sup = f"{row.get('min_support', 0):.3f}"
                 
                 rule_str = f"`{row['rule']}`"
@@ -147,15 +154,17 @@ def generate_markdown_report(
                 elif row['rule'] in unique_set:
                     rule_str += " *(unique)*"
 
-                line_parts = [f"| {rule_str} | **{avg_conf}** | {avg_sup} | {min_conf} | {min_sup} |"]
+                line_parts = [f"| {rule_str} | **{avg_conf}** | {avg_lift} | {avg_sup} | {min_conf} | {min_lift} | {min_sup} |"]
                 for ds_name in dataset_names:
                     ds_conf = row.get(f'{ds_name}_confidence', 'N/A')
+                    ds_lift = row.get(f'{ds_name}_lift', 'N/A')
                     ds_sup = row.get(f'{ds_name}_support', 'N/A')
                     ds_count = row.get(f'{ds_name}_count', 'N/A')
                     if isinstance(ds_conf, float): ds_conf = f"{ds_conf:.2f}"
+                    if isinstance(ds_lift, float): ds_lift = f"{ds_lift:.2f}"
                     if isinstance(ds_sup, float): ds_sup = f"{ds_sup:.2f}"
                     if isinstance(ds_count, (float, int)): ds_count = f"{int(ds_count)}"
-                    line_parts.append(f" c:{ds_conf} s:{ds_sup} n:{ds_count} |")
+                    line_parts.append(f" c:{ds_conf} l:{ds_lift} s:{ds_sup} n:{ds_count} |")
                 lines.append("".join(line_parts))
             lines.append("")
 

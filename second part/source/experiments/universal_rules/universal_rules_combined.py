@@ -66,8 +66,8 @@ def generate_markdown_report(rules, output_dir):
         "",
         "## Discovered Rules",
         "",
-        "| Antecedent | Consequent | Confidence | Support |",
-        "|------------|------------|------------|---------|"
+        "| Antecedent | Consequent | Confidence | Lift | Support |",
+        "|------------|------------|------------|------|---------|"
     ]
 
     for rule in rules:
@@ -78,7 +78,7 @@ def generate_markdown_report(rules, output_dir):
         ante = ante.replace('|', '\\|')
         cons = cons.replace('|', '\\|')
         
-        lines.append(f"| `{ante}` | `{cons}` | {rule.confidence:.4f} | {rule.support:.4f} |")
+        lines.append(f"| `{ante}` | `{cons}` | {rule.confidence:.4f} | {rule.lift:.4f} | {rule.support:.4f} |")
 
     report_path = output_dir / "universal_rules_combined_report.md"
     report_path.write_text("\n".join(lines), encoding="utf-8")

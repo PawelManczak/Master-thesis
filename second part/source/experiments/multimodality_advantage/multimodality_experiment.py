@@ -105,21 +105,24 @@ def process_dataset(df, name):
     for size, r_list in stats.items():
         if not r_list:
             stats_out.append({
-                'size': size, 'count': 0, 'avg_conf': 0, 'max_conf': 0, 'avg_sup': 0
+                'size': size, 'count': 0, 'avg_conf': 0, 'max_conf': 0, 'avg_sup': 0, 'avg_lift': 0, 'max_lift': 0
             })
             continue
             
         confs = [r.confidence for r in r_list]
         sups = [r.support for r in r_list]
+        lifts = [r.lift for r in r_list]
         
         stats_out.append({
             'size': size,
             'count': len(r_list),
             'avg_conf': np.mean(confs),
             'max_conf': np.max(confs),
-            'avg_sup': np.mean(sups)
+            'avg_sup': np.mean(sups),
+            'avg_lift': np.mean(lifts),
+            'max_lift': np.max(lifts)
         })
-        print(f"    Size {size}: count={len(r_list)}, avg_conf={np.mean(confs):.3f}, max_conf={np.max(confs):.3f}")
+        print(f"    Size {size}: count={len(r_list)}, avg_conf={np.mean(confs):.3f}, avg_lift={np.mean(lifts):.3f}, max_conf={np.max(confs):.3f}")
         
     return stats_out
 
@@ -232,8 +235,8 @@ def main():
     report_lines = [
         "# Multimodality Advantage Report\n",
         f"**Parameters:** minsup={MINSUP}, minconf={MINCONF}, maxgap={MAXGAP}s\n",
-        "| Group | Dataset | Size 2 (N) | Size 2 (Avg Conf) | Size 3 (N) | Size 3 (Avg Conf) | Size 4 (N) | Size 4 (Avg Conf) |",
-        "|---|---|---|---|---|---|---|---|"
+        "| Group | Dataset | Size 2 (N) | Size 2 (Avg Conf) | Size 2 (Avg Lift) | Size 3 (N) | Size 3 (Avg Conf) | Size 3 (Avg Lift) | Size 4 (N) | Size 4 (Avg Conf) | Size 4 (Avg Lift) |",
+        "|---|---|---|---|---|---|---|---|---|---|---|"
     ]
 
     # Maintain orderly grouping in the table
@@ -250,9 +253,9 @@ def main():
             for size in [2, 3, 4]:
                 stat = group_df[(group_df['dataset'] == name) & (group_df['size'] == size)]
                 if not stat.empty and stat['count'].iloc[0] > 0:
-                    row.extend([str(stat['count'].iloc[0]), f"{stat['avg_conf'].iloc[0]:.3f}"])
+                    row.extend([str(stat['count'].iloc[0]), f"{stat['avg_conf'].iloc[0]:.3f}", f"{stat['avg_lift'].iloc[0]:.3f}"])
                 else:
-                    row.extend(["0", "-"])
+                    row.extend(["0", "-", "-"])
             report_lines.append("| " + " | ".join(row) + " |")
 
     report_path = OUTPUT_DIR / "multimodality_report.md"

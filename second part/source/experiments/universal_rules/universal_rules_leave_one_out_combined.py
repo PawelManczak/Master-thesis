@@ -119,20 +119,22 @@ def generate_markdown_report(report_data, output_dir):
     for test_ds, data in report_data.items():
         lines.append(f"### Trained on others, tested on {test_ds}")
         if data['intersection']:
-            lines.append("| Rule | Train Confidence | Test Confidence |")
-            lines.append("|------|------------------|-----------------|")
+            lines.append("| Rule | Train Confidence | Train Lift | Test Confidence | Test Lift |")
+            lines.append("|------|------------------|------------|-----------------|-----------|")
             
             # Sort by Train Confidence 
             survivors = []
             for sig in data['intersection']:
                 t_conf = data['train_rules'][sig].confidence
+                t_lift = data['train_rules'][sig].lift
                 s_conf = data['test_rules'][sig].confidence
-                survivors.append((sig, t_conf, s_conf))
+                s_lift = data['test_rules'][sig].lift
+                survivors.append((sig, t_conf, t_lift, s_conf, s_lift))
                 
             survivors.sort(key=lambda x: x[1], reverse=True)
-            for sig, tc, sc in survivors:
+            for sig, tc, tl, sc, sl in survivors:
                 cleansig = sig.replace('|', '\\|')
-                lines.append(f"| `{cleansig}` | {tc:.4f} | {sc:.4f} |")
+                lines.append(f"| `{cleansig}` | {tc:.4f} | {tl:.4f} | {sc:.4f} | {sl:.4f} |")
         else:
             lines.append("*No rules from the training pool generalized to this test set successfully.*")
         lines.append("")

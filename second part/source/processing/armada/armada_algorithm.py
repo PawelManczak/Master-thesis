@@ -136,6 +136,7 @@ class TemporalRule:
     consequent: TemporalPattern
     confidence: float
     support: float
+    lift: float = 0.0
 
     def to_string(self) -> str:
         return f"{self.antecedent.get_relation_description()} => {self.consequent.get_relation_description()}"
@@ -591,6 +592,13 @@ class ARMADA:
                     sub_support = pattern_support[sub_key]
                     confidence = pattern.support / sub_support if sub_support > 0 else 0
 
+                    end_states = pattern.states[i:]
+                    end_matrix = [row[i:] for row in pattern.relations_matrix[i:]]
+                    end_key = (tuple(end_states), tuple(tuple(row) for row in end_matrix))
+                    
+                    end_support = pattern_support.get(end_key, 0)
+                    lift = (pattern.support / (sub_support * end_support)) if (sub_support > 0 and end_support > 0) else 0.0
+
                     if confidence >= self.minconf:
                         antecedent = TemporalPattern(
                             states=sub_states,
@@ -602,7 +610,8 @@ class ARMADA:
                             antecedent=antecedent,
                             consequent=pattern,
                             confidence=confidence,
-                            support=pattern.support
+                            support=pattern.support,
+                            lift=lift
                         )
                         self.temporal_rules.append(rule)
 
@@ -670,6 +679,7 @@ class ARMADA:
                 'antecedent': r.antecedent.get_relation_description(),
                 'consequent': r.consequent.get_relation_description(),
                 'confidence': r.confidence,
+                'lift': r.lift,
                 'support': r.support,
                 'score': r.confidence * r.support  # sorting metric
             })
@@ -721,7 +731,7 @@ class ARMADA:
             print("\nTop 10 rules (by confidence):")
             sorted_rules = sorted(self.temporal_rules, key=lambda x: -x.confidence)
             for i, r in enumerate(sorted_rules[:10]):
-                print(f"  {i+1}. {r.to_string()} (conf={r.confidence:.3f}, sup={r.support:.3f})")
+                print(f"  {i+1}. {r.to_string()} (conf={r.confidence:.3f}, lift={r.lift:.3f}, sup={r.support:.3f})")
 
 
 def main():

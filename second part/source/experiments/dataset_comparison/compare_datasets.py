@@ -235,6 +235,7 @@ def save_common_rules_details(
     for rule_sig in sorted(common_rules):
         entry = {"rule": rule_sig}
         confidences = []
+        lifts = []
         supports = []
 
         for ds_name, (armada, patterns, rules) in all_results.items():
@@ -242,13 +243,16 @@ def save_common_rules_details(
                 sig = f"{r.antecedent.get_relation_description()} => {r.consequent.get_relation_description()}"
                 if sig == rule_sig:
                     entry[f"{ds_name}_confidence"] = round(r.confidence, 4)
+                    entry[f"{ds_name}_lift"] = round(r.lift, 4)
                     entry[f"{ds_name}_support"] = round(r.support, 4)
                     confidences.append(r.confidence)
+                    lifts.append(r.lift)
                     supports.append(r.support)
                     break
 
         if confidences:
             entry["avg_confidence"] = round(sum(confidences) / len(confidences), 4)
+            entry["avg_lift"] = round(sum(lifts) / len(lifts), 4)
             entry["min_confidence"] = round(min(confidences), 4)
             entry["avg_support"] = round(sum(supports) / len(supports), 4)
 
@@ -349,14 +353,17 @@ def generate_markdown_report(
         for _, row in common_rules_df.iterrows():
             rule = row['rule']
             avg_conf = row.get('avg_confidence', 'N/A')
+            avg_lift = row.get('avg_lift', 'N/A')
             avg_sup = row.get('avg_support', 'N/A')
 
             if isinstance(avg_conf, float):
                 avg_conf = f"{avg_conf:.2f}"
+            if isinstance(avg_lift, float):
+                avg_lift = f"{avg_lift:.2f}"
             if isinstance(avg_sup, float):
                 avg_sup = f"{avg_sup:.2f}"
 
-            lines.append(f"- `{rule}` (conf={avg_conf}, sup={avg_sup})")
+            lines.append(f"- `{rule}` (conf={avg_conf}, lift={avg_lift}, sup={avg_sup})")
 
     lines.append("")
 
@@ -595,7 +602,7 @@ def main():
 
     for _, row in common_rules_df.head(10).iterrows():
         print(f"  {row['rule']}")
-        print(f"    avg_conf={row.get('avg_confidence', 'N/A')}, avg_sup={row.get('avg_support', 'N/A')}")
+        print(f"    avg_conf={row.get('avg_confidence', 'N/A')}, avg_lift={row.get('avg_lift', 'N/A')}, avg_sup={row.get('avg_support', 'N/A')}")
 
     if len(common_rules_df) > 10:
         print(f"  ... and {len(common_rules_df) - 10} more")
@@ -624,6 +631,7 @@ def main():
             comb_details.append({
                 "rule": sig,
                 "confidence": rule_obj.confidence,
+                "lift": rule_obj.lift,
                 "support": rule_obj.support,
             })
 
@@ -636,7 +644,7 @@ def main():
         print("RULES FROM COMBINED ANALYSIS (TOP 15)")
         print("=" * 80)
         for _, row in comb_df.head(15).iterrows():
-            print(f"  {row['rule']} (conf={row['confidence']:.2f}, sup={row['support']:.2f})")
+            print(f"  {row['rule']} (conf={row['confidence']:.2f}, lift={row['lift']:.2f}, sup={row['support']:.2f})")
 
     print("\n" + "=" * 80)
     print("EXPERIMENT FINISHED")

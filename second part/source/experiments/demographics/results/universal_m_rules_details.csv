@@ -1,5 +1,5 @@
-rule,CASE_confidence,CASE_support,CASE_count,K-emoCon_confidence,K-emoCon_support,K-emoCon_count,CEAP_confidence,CEAP_support,CEAP_count,EmoWorker_v2_confidence,EmoWorker_v2_support,EmoWorker_v2_count,avg_confidence,min_confidence,avg_support,min_support
-(hrv_rmssd_low) => hrv_rmssd_low meets valence_medium,0.8667,0.8667,13,0.6154,0.5,8,1.0,0.125,2,0.6667,0.5833,14,0.7872,0.6154,0.5188,0.125
-(temp_low) => temp_low meets valence_medium,1.0,1.0,15,0.7692,0.625,10,0.5714,0.25,4,0.6667,0.6667,16,0.7518,0.5714,0.6354,0.25
-(hrv_pnn20_medium) => hrv_pnn20_medium meets valence_medium,0.8667,0.8667,13,0.7,0.4375,7,0.5,0.0625,1,0.5,0.4167,10,0.6417,0.5,0.4458,0.0625
-(hrv_pnn50_low) => hrv_pnn50_low meets valence_medium,0.8667,0.8667,13,0.5833,0.4375,7,0.5,0.125,2,0.5714,0.5,12,0.6304,0.5,0.4823,0.125
+rule,CASE_confidence,CASE_lift,CASE_support,CASE_count,K-emoCon_confidence,K-emoCon_lift,K-emoCon_support,K-emoCon_count,CEAP_confidence,CEAP_lift,CEAP_support,CEAP_count,EmoWorker_v2_confidence,EmoWorker_v2_lift,EmoWorker_v2_support,EmoWorker_v2_count,avg_confidence,avg_lift,min_confidence,min_lift,avg_support,min_support
+(hrv_rmssd_low) => hrv_rmssd_low meets valence_medium,0.8667,0.8667,0.8667,13,0.6154,0.6154,0.5,8,1.0,1.0,0.125,2,0.6667,0.6667,0.5833,14,0.7872,0.7872,0.6154,0.6154,0.5188,0.125
+(temp_low) => temp_low meets valence_medium,1.0,1.0,1.0,15,0.7692,0.7692,0.625,10,0.5714,0.5714,0.25,4,0.6667,0.6667,0.6667,16,0.7518,0.7518,0.5714,0.5714,0.6354,0.25
+(hrv_pnn20_medium) => hrv_pnn20_medium meets valence_medium,0.8667,0.8667,0.8667,13,0.7,0.7,0.4375,7,0.5,0.5,0.0625,1,0.5,0.5,0.4167,10,0.6417,0.6417,0.5,0.5,0.4458,0.0625
+(hrv_pnn50_low) => hrv_pnn50_low meets valence_medium,0.8667,0.8667,0.8667,13,0.5833,0.5833,0.4375,7,0.5,0.5,0.125,2,0.5714,0.5714,0.5,12,0.6304,0.6304,0.5,0.5,0.4823,0.125

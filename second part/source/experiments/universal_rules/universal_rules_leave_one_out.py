@@ -103,12 +103,12 @@ def generate_markdown_report(
 
         lines.append(f"### Missing in: {ds}")
         lines.append("")
-        lines.append("| Rule | Avg Conf | Avg Sup | Formed By |")
-        lines.append("|---|---|---|---|")
+        lines.append("| Rule | Avg Conf | Avg Lift | Avg Sup | Formed By |")
+        lines.append("|---|---|---|---|---|")
 
         for _, row in ds_rules.head(20).iterrows():
             lines.append(
-                f"| `{row['rule']}` | {row['avg_confidence']:.4f} | {row['avg_support']:.4f} | {row['present_in']} |")
+                f"| `{row['rule']}` | {row['avg_confidence']:.4f} | {row['avg_lift']:.4f} | {row['avg_support']:.4f} | {row['present_in']} |")
 
         lines.append("")
 
@@ -223,17 +223,20 @@ def main():
                 missing_ds = (dataset_names - present_in).pop()
 
                 confidences = []
+                lifts = []
                 supports = []
-
+                
                 for ds in present_in:
                     r_match = sig_to_rule_map[ds].get(rule)
                     if r_match:
                         confidences.append(r_match.confidence)
+                        lifts.append(r_match.lift)
                         supports.append(r_match.support)
                     else:
                         print(f"WARNING: Rule {rule} not found in {ds} objects despite signature match!")
 
                 avg_conf = sum(confidences) / len(confidences) if confidences else 0
+                avg_lift = sum(lifts) / len(lifts) if lifts else 0
                 avg_sup = sum(supports) / len(supports) if supports else 0
 
                 leave_one_out_rules.append({
@@ -241,6 +244,7 @@ def main():
                     'missing_dataset': missing_ds,
                     'present_in': ", ".join(present_in),
                     'avg_confidence': round(avg_conf, 4),
+                    'avg_lift': round(avg_lift, 4),
                     'avg_support': round(avg_sup, 4)
                 })
 

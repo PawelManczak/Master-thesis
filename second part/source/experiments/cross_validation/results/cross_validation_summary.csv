@@ -1,5 +1,5 @@
 Train (N-1),Val,Common (Train),Validated,Hit Rate (%)
-K-emoCon + CEAP + EmoWorker_v2,CASE,3,0,0.0
-CASE + CEAP + EmoWorker_v2,K-emoCon,3,0,0.0
-CASE + K-emoCon + EmoWorker_v2,CEAP,40,0,0.0
-CASE + K-emoCon + CEAP,EmoWorker_v2,32,0,0.0
+K-emoCon + CEAP + EmoWorker_v2,CASE,1,0,0.0
+CASE + CEAP + EmoWorker_v2,K-emoCon,5,0,0.0
+CASE + K-emoCon + EmoWorker_v2,CEAP,49,0,0.0
+CASE + K-emoCon + CEAP,EmoWorker_v2,2,0,0.0

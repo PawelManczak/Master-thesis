@@ -59,27 +59,27 @@ Same physiological data (Empatica E4), different annotation source.
 
 ### K-emoCon Shared Rules
 
-| Rule | Self Conf | Ext Conf | Δ |
-|------|----------|---------|---|
-| `(hrv_rmssd_high) => hrv_rmssd_high meets valence_medium` | 0.519 | 0.826 | +0.308 |
-| `(hrv_cvnn_high) => hrv_cvnn_high meets valence_medium` | 0.556 | 0.857 | +0.302 |
-| `(eda_medium) => eda_medium meets valence_medium` | 0.577 | 0.875 | +0.298 |
-| `(hrv_pnn50_high) => hrv_pnn50_high meets valence_medium` | 0.538 | 0.833 | +0.295 |
-| `(eda_high) => eda_high before valence_medium` | 0.571 | 0.857 | +0.286 |
-| `(eda_scr_amp_high) => eda_scr_amp_high starts valence_medium` | 0.643 | 0.929 | +0.286 |
-| `(arousal_low) => arousal_low meets eda_scr_auc_medium` | 0.833 | 0.571 | -0.262 |
-| `(hrv_sdnn_high) => hrv_sdnn_high meets valence_medium` | 0.593 | 0.826 | +0.233 |
-| `(arousal_low) => arousal_low is-finished-by eda_peaks_high` | 0.833 | 0.607 | -0.226 |
-| `(eda_peaks_high) => eda_peaks_high meets valence_medium` | 0.571 | 0.786 | +0.214 |
-| `(eda_max_medium) => eda_max_medium equals valence_medium` | 0.679 | 0.885 | +0.206 |
-| `(hrv_cvnn_high) => hrv_cvnn_high meets arousal_medium` | 0.519 | 0.714 | +0.196 |
-| `(valence_medium) => valence_medium is-finished-by eda_peaks_high` | 0.750 | 0.607 | -0.143 |
-| `(hrv_pnn50_high) => hrv_pnn50_high meets arousal_medium` | 0.538 | 0.625 | +0.087 |
-| `(arousal_low) => arousal_low contains eda_std_medium` | 0.833 | 0.750 | -0.083 |
-| `(arousal_low) => arousal_low is-finished-by eda_scr_auc_low` | 0.667 | 0.607 | -0.060 |
-| `(valence_medium) => valence_medium meets eda_peaks_medium` | 0.786 | 0.750 | -0.036 |
-| `(valence_medium) => valence_medium is-finished-by eda_std_low` | 0.536 | 0.571 | +0.036 |
-| `(valence_medium) => valence_medium meets eda_scr_auc_medium` | 0.750 | 0.750 | +0.000 |
+| Rule | Self Conf | Self Lift | Ext Conf | Ext Lift | Δ Conf |
+|------|----------|-----------|---------|----------|---|
+| `(hrv_rmssd_high) => hrv_rmssd_high meets valence_medium` | 0.519 | 0.519 | 0.826 | 0.826 | +0.308 |
+| `(hrv_cvnn_high) => hrv_cvnn_high meets valence_medium` | 0.556 | 0.556 | 0.857 | 0.857 | +0.302 |
+| `(eda_medium) => eda_medium meets valence_medium` | 0.577 | 0.577 | 0.875 | 0.875 | +0.298 |
+| `(hrv_pnn50_high) => hrv_pnn50_high meets valence_medium` | 0.538 | 0.538 | 0.833 | 0.833 | +0.295 |
+| `(eda_high) => eda_high before valence_medium` | 0.571 | 0.571 | 0.857 | 0.857 | +0.286 |
+| `(eda_scr_amp_high) => eda_scr_amp_high starts valence_medium` | 0.643 | 0.643 | 0.929 | 0.929 | +0.286 |
+| `(arousal_low) => arousal_low meets eda_scr_auc_medium` | 0.833 | 0.864 | 0.571 | 0.615 | -0.262 |
+| `(hrv_sdnn_high) => hrv_sdnn_high meets valence_medium` | 0.593 | 0.593 | 0.826 | 0.826 | +0.233 |
+| `(arousal_low) => arousal_low is-finished-by eda_peaks_high` | 0.833 | 0.833 | 0.607 | 0.607 | -0.226 |
+| `(eda_peaks_high) => eda_peaks_high meets valence_medium` | 0.571 | 0.571 | 0.786 | 0.786 | +0.214 |
+| `(eda_max_medium) => eda_max_medium equals valence_medium` | 0.679 | 0.679 | 0.885 | 0.885 | +0.206 |
+| `(hrv_cvnn_high) => hrv_cvnn_high meets arousal_medium` | 0.519 | 0.519 | 0.714 | 0.714 | +0.196 |
+| `(valence_medium) => valence_medium is-finished-by eda_peaks_high` | 0.750 | 0.750 | 0.607 | 0.607 | -0.143 |
+| `(hrv_pnn50_high) => hrv_pnn50_high meets arousal_medium` | 0.538 | 0.538 | 0.625 | 0.625 | +0.087 |
+| `(arousal_low) => arousal_low contains eda_std_medium` | 0.833 | 0.833 | 0.750 | 0.750 | -0.083 |
+| `(arousal_low) => arousal_low is-finished-by eda_scr_auc_low` | 0.667 | 0.667 | 0.607 | 0.607 | -0.060 |
+| `(valence_medium) => valence_medium meets eda_peaks_medium` | 0.786 | 0.815 | 0.750 | 0.840 | -0.036 |
+| `(valence_medium) => valence_medium is-finished-by eda_std_low` | 0.536 | 0.536 | 0.571 | 0.571 | +0.036 |
+| `(valence_medium) => valence_medium meets eda_scr_auc_medium` | 0.750 | 0.778 | 0.750 | 0.808 | +0.000 |
 
 - Mean Δ confidence (ext − self): **+0.102**
 - Rules with higher confidence in external: 11

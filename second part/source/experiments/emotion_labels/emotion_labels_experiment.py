@@ -281,6 +281,7 @@ def get_rule_details(rules):
         sig = f"{r.antecedent.get_relation_description()} => {r.consequent.get_relation_description()}"
         details[sig] = {
             'confidence': r.confidence,
+            'lift': r.lift,
             'support': r.support,
             'count': r.consequent.support_count
         }

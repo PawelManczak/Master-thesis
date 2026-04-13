@@ -34,19 +34,19 @@ Total universal rules found: **11**
 
 ### Details (sorted by avg. confidence)
 
-| Rule | Avg Conf | Avg Sup | Min Conf | Min Sup | EMBOA | K-emoCon-ext |
-|---|---|---|---|---|---|---|
-| `(eda_std_high) => eda_std_high starts valence_medium` | **0.871** | 0.871 | 0.812 | 0.812 | c:0.81 s:0.81 n:13 | c:0.93 s:0.93 n:26 |
-| `(arousal_high) => arousal_high meets valence_medium` | **0.746** | 0.696 | 0.692 | 0.643 | c:0.80 s:0.75 n:12 | c:0.69 s:0.64 n:18 |
-| `(eda_max_low) => eda_max_low meets valence_medium` | **0.701** | 0.701 | 0.688 | 0.688 | c:0.69 s:0.69 n:11 | c:0.71 s:0.71 n:20 |
-| `(valence_high) => valence_high meets eda_medium` | **0.640** | 0.536 | 0.529 | 0.321 | c:0.75 s:0.75 n:12 | c:0.53 s:0.32 n:9 |
-| `(valence_high) => valence_high meets eda_std_high` | **0.579** | 0.487 | 0.471 | 0.286 | c:0.69 s:0.69 n:11 | c:0.47 s:0.29 n:8 |
-| `(arousal_high) => arousal_high meets eda_max_medium` | **0.564** | 0.527 | 0.462 | 0.429 | c:0.67 s:0.62 n:10 | c:0.46 s:0.43 n:12 |
-| `(arousal_high) => arousal_high meets eda_medium` | **0.545** | 0.509 | 0.423 | 0.393 | c:0.67 s:0.62 n:10 | c:0.42 s:0.39 n:11 |
-| `(valence_high) => valence_high meets eda_max_medium` | **0.489** | 0.420 | 0.353 | 0.214 | c:0.62 s:0.62 n:10 | c:0.35 s:0.21 n:6 |
-| `(valence_high) => valence_high meets hr_low` | **0.485** | 0.393 | 0.471 | 0.286 | c:0.50 s:0.50 n:8 | c:0.47 s:0.29 n:8 |
-| `(arousal_high) => arousal_high meets hr_high` | **0.382** | 0.357 | 0.231 | 0.214 | c:0.53 s:0.50 n:8 | c:0.23 s:0.21 n:6 |
-| `(valence_high) => valence_high meets arousal_high` | **0.303** | 0.245 | 0.294 | 0.179 | c:0.31 s:0.31 n:5 | c:0.29 s:0.18 n:5 |
+| Rule | Avg Conf | Avg Lift | Avg Sup | Min Conf | Min Lift | Min Sup | EMBOA | K-emoCon-ext |
+|---|---|---|---|---|---|---|---|---|
+| `(eda_std_high) => eda_std_high starts valence_medium` | **0.871** | 0.871 | 0.871 | 0.812 | 0.812 | 0.812 | c:0.81 l:0.81 s:0.81 n:13 | c:0.93 l:0.93 s:0.93 n:26 |
+| `(arousal_high) => arousal_high meets valence_medium` | **0.746** | 0.746 | 0.696 | 0.692 | 0.692 | 0.643 | c:0.80 l:0.80 s:0.75 n:12 | c:0.69 l:0.69 s:0.64 n:18 |
+| `(eda_max_low) => eda_max_low meets valence_medium` | **0.701** | 0.701 | 0.701 | 0.688 | 0.688 | 0.688 | c:0.69 l:0.69 s:0.69 n:11 | c:0.71 l:0.71 s:0.71 n:20 |
+| `(valence_high) => valence_high meets eda_medium` | **0.640** | 0.684 | 0.536 | 0.529 | 0.618 | 0.321 | c:0.75 l:0.75 s:0.75 n:12 | c:0.53 l:0.62 s:0.32 n:9 |
+| `(valence_high) => valence_high meets eda_std_high` | **0.579** | 0.579 | 0.487 | 0.471 | 0.471 | 0.286 | c:0.69 l:0.69 s:0.69 n:11 | c:0.47 l:0.47 s:0.29 n:8 |
+| `(arousal_high) => arousal_high meets eda_max_medium` | **0.564** | 0.582 | 0.527 | 0.462 | 0.497 | 0.429 | c:0.67 l:0.67 s:0.62 n:10 | c:0.46 l:0.50 s:0.43 n:12 |
+| `(arousal_high) => arousal_high meets eda_medium` | **0.545** | 0.580 | 0.509 | 0.423 | 0.494 | 0.393 | c:0.67 l:0.67 s:0.62 n:10 | c:0.42 l:0.49 s:0.39 n:11 |
+| `(valence_high) => valence_high meets eda_max_medium` | **0.489** | 0.502 | 0.420 | 0.353 | 0.380 | 0.214 | c:0.62 l:0.62 s:0.62 n:10 | c:0.35 l:0.38 s:0.21 n:6 |
+| `(valence_high) => valence_high meets hr_low` | **0.485** | 0.494 | 0.393 | 0.471 | 0.488 | 0.286 | c:0.50 l:0.50 s:0.50 n:8 | c:0.47 l:0.49 s:0.29 n:8 |
+| `(arousal_high) => arousal_high meets hr_high` | **0.382** | 0.386 | 0.357 | 0.231 | 0.239 | 0.214 | c:0.53 l:0.53 s:0.50 n:8 | c:0.23 l:0.24 s:0.21 n:6 |
+| `(valence_high) => valence_high meets arousal_high` | **0.303** | 0.325 | 0.245 | 0.294 | 0.317 | 0.179 | c:0.31 l:0.33 s:0.31 n:5 | c:0.29 l:0.32 s:0.18 n:5 |
 
 ## Dataset-Specific Rules
 

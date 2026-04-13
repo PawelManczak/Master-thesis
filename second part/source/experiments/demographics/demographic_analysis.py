@@ -202,6 +202,7 @@ def compare_groups(
                     sig = f"{r.antecedent.get_relation_description()} => {r.consequent.get_relation_description()}"
                     if sig == rule_sig:
                         entry[f'{name}_confidence'] = round(r.confidence, 4)
+                        entry[f'{name}_lift'] = round(r.lift, 4)
                         entry[f'{name}_support'] = round(r.support, 4)
                         break
         results.append(entry)
@@ -362,6 +363,7 @@ def experiment_4_combined_breakdown(armada_combined_df: pd.DataFrame, demo_df: p
         record = {
             'rule': sig,
             'confidence': round(rule.confidence, 4),
+            'lift': round(rule.lift, 4),
             'support': round(rule.support, 4),
         }
 

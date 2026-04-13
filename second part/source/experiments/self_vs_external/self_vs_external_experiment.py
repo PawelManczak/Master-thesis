@@ -82,12 +82,13 @@ def run_armada_on_dataset(data_file: Path) -> Tuple[ARMADA, List, List]:
 
 
 def get_rule_details(rules: List) -> Dict[str, dict]:
-    """Builds a dict rule_signature -> {confidence, support, count}."""
+    """Builds a dict rule_signature -> {confidence, lift, support, count}."""
     details = {}
     for r in rules:
         sig = f"{r.antecedent.get_relation_description()} => {r.consequent.get_relation_description()}"
         details[sig] = {
             'confidence': r.confidence,
+            'lift': r.lift,
             'support': r.support,
             'count': r.consequent.support_count
         }
@@ -226,22 +227,24 @@ def generate_report(self_results: dict, ext_results: dict, output_dir: Path) -> 
         if kemo_shared:
             lines.append("### K-emoCon Shared Rules")
             lines.append("")
-            lines.append("| Rule | Self Conf | Ext Conf | Δ |")
-            lines.append("|------|----------|---------|---|")
+            lines.append("| Rule | Self Conf | Self Lift | Ext Conf | Ext Lift | Δ Conf |")
+            lines.append("|------|----------|-----------|---------|----------|---|")
 
             shared_rows = []
             for sig in kemo_shared:
                 s_conf = kemo_self_details.get(sig, {}).get('confidence', 0)
+                s_lift = kemo_self_details.get(sig, {}).get('lift', 0)
                 e_conf = kemo_ext_details.get(sig, {}).get('confidence', 0)
+                e_lift = kemo_ext_details.get(sig, {}).get('lift', 0)
                 delta = e_conf - s_conf
-                shared_rows.append((sig, s_conf, e_conf, delta))
+                shared_rows.append((sig, s_conf, s_lift, e_conf, e_lift, delta))
 
-            shared_rows.sort(key=lambda x: -abs(x[3]))
-            for sig, s_conf, e_conf, delta in shared_rows:
-                lines.append(f"| `{sig}` | {s_conf:.3f} | {e_conf:.3f} | {delta:+.3f} |")
+            shared_rows.sort(key=lambda x: -abs(x[5]))
+            for sig, s_conf, s_lift, e_conf, e_lift, delta in shared_rows:
+                lines.append(f"| `{sig}` | {s_conf:.3f} | {s_lift:.3f} | {e_conf:.3f} | {e_lift:.3f} | {delta:+.3f} |")
             lines.append("")
 
-            deltas = [row[3] for row in shared_rows]
+            deltas = [row[5] for row in shared_rows]
             avg_delta = np.mean(deltas)
             higher_ext = sum(1 for d in deltas if d > 0.05)
             higher_self = sum(1 for d in deltas if d < -0.05)

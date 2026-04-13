@@ -68,6 +68,7 @@ def get_rule_details(rules: List[TemporalRule]) -> Dict[str, Dict]:
         sig = f"{r.antecedent.get_relation_description()} => {r.consequent.get_relation_description()}"
         details[sig] = {
             'confidence': r.confidence,
+            'lift': r.lift,
             'support': r.support,
         }
     return details
@@ -157,28 +158,38 @@ def run_cross_validation():
 
             # Values for training sets
             train_confs = []
+            train_lifts = []
             train_sups = []
             for t in train_sets:
                 d = all_rule_details[t].get(sig, {})
                 c = d.get('confidence', 0)
+                l = d.get('lift', 0)
                 s = d.get('support', 0)
                 detail[f'{t}_conf'] = round(c, 3)
+                detail[f'{t}_lift'] = round(l, 3)
                 detail[f'{t}_sup'] = round(s, 3)
                 train_confs.append(c)
+                train_lifts.append(l)
                 train_sups.append(s)
 
             # Values for validation set
             dv = all_rule_details[val_set].get(sig, {})
             val_conf = dv.get('confidence', 0)
+            val_lift = dv.get('lift', 0)
             val_sup = dv.get('support', 0)
             detail[f'{val_set}_conf'] = round(val_conf, 3)
+            detail[f'{val_set}_lift'] = round(val_lift, 3)
             detail[f'{val_set}_sup'] = round(val_sup, 3)
 
             # Averages
             train_avg_conf = sum(train_confs) / len(train_confs) if train_confs else 0
+            train_avg_lift = sum(train_lifts) / len(train_lifts) if train_lifts else 0
             detail['train_avg_conf'] = round(train_avg_conf, 3)
+            detail['train_avg_lift'] = round(train_avg_lift, 3)
             detail['val_conf'] = round(val_conf, 3)
+            detail['val_lift'] = round(val_lift, 3)
             detail['conf_diff'] = round(val_conf - train_avg_conf, 3)
+            detail['lift_diff'] = round(val_lift - train_avg_lift, 3)
 
             validated_details.append(detail)
 
@@ -250,17 +261,24 @@ def run_cross_validation():
             continue
 
         all_confs = []
+        all_lifts = []
         all_sups = []
         per_ds = {}
         for ds in ds_names:
             dd = all_rule_details[ds].get(sig, {})
             c = dd.get('confidence', None)
+            l = dd.get('lift', None)
             s = dd.get('support', None)
             if c is not None:
                 all_confs.append(c)
                 per_ds[f'{ds} conf'] = round(c, 3)
             else:
                 per_ds[f'{ds} conf'] = '-'
+            if l is not None:
+                all_lifts.append(l)
+                per_ds[f'{ds} lift'] = round(l, 3)
+            else:
+                per_ds[f'{ds} lift'] = '-'
             if s is not None:
                 all_sups.append(s)
                 per_ds[f'{ds} sup'] = round(s, 3)
@@ -272,6 +290,7 @@ def run_cross_validation():
             f'Presence (/{total_datasets})': count,
             **per_ds,
             'Avg conf': round(sum(all_confs) / len(all_confs), 3) if all_confs else '-',
+            'Avg lift': round(sum(all_lifts) / len(all_lifts), 3) if all_lifts else '-',
             'Avg sup': round(sum(all_sups) / len(all_sups), 3) if all_sups else '-',
         })
 

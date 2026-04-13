@@ -20,17 +20,17 @@ and checks for their survival exclusively on the held-out test set.
 ## Validated Generalized Rules (by Test Set)
 
 ### Trained on others, tested on EMBOA
-| Rule | Train Confidence | Test Confidence |
-|------|------------------|-----------------|
-| `(eda_std_high) => eda_std_high starts valence_medium` | 0.9286 | 0.8125 |
-| `(eda_max_low) => eda_max_low meets valence_medium` | 0.7143 | 0.6875 |
-| `(arousal_high) => arousal_high meets valence_medium` | 0.6923 | 0.8000 |
-| `(valence_high) => valence_high meets eda_medium` | 0.5294 | 0.7500 |
+| Rule | Train Confidence | Train Lift | Test Confidence | Test Lift |
+|------|------------------|------------|-----------------|-----------|
+| `(eda_std_high) => eda_std_high starts valence_medium` | 0.9286 | 0.9286 | 0.8125 | 0.8125 |
+| `(eda_max_low) => eda_max_low meets valence_medium` | 0.7143 | 0.7143 | 0.6875 | 0.6875 |
+| `(arousal_high) => arousal_high meets valence_medium` | 0.6923 | 0.6923 | 0.8000 | 0.8000 |
+| `(valence_high) => valence_high meets eda_medium` | 0.5294 | 0.6176 | 0.7500 | 0.7500 |
 
 ### Trained on others, tested on K-emo_ext
-| Rule | Train Confidence | Test Confidence |
-|------|------------------|-----------------|
-| `(eda_std_high) => eda_std_high starts valence_medium` | 0.8125 | 0.9286 |
-| `(arousal_high) => arousal_high meets valence_medium` | 0.8000 | 0.6923 |
-| `(valence_high) => valence_high meets eda_medium` | 0.7500 | 0.5294 |
-| `(eda_max_low) => eda_max_low meets valence_medium` | 0.6875 | 0.7143 |
+| Rule | Train Confidence | Train Lift | Test Confidence | Test Lift |
+|------|------------------|------------|-----------------|-----------|
+| `(eda_std_high) => eda_std_high starts valence_medium` | 0.8125 | 0.8125 | 0.9286 | 0.9286 |
+| `(arousal_high) => arousal_high meets valence_medium` | 0.8000 | 0.8000 | 0.6923 | 0.6923 |
+| `(valence_high) => valence_high meets eda_medium` | 0.7500 | 0.7500 | 0.5294 | 0.6176 |
+| `(eda_max_low) => eda_max_low meets valence_medium` | 0.6875 | 0.6875 | 0.7143 | 0.7143 |
