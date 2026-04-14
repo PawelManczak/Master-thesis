@@ -32,10 +32,10 @@ PROJECT_DIR = EXPERIMENTS_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 sys.path.insert(0, str(EXPERIMENTS_DIR))
 
-MINSUP = 0.5
+MINSUP = 0.3
 MINCONF = 0.5
 MAXGAP = 5
-MAX_PATTERN_SIZE = 2
+MAX_PATTERN_SIZE = 4
 
 FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True
