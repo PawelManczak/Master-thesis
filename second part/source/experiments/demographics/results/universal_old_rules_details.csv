@@ -1,7 +1,6 @@
 rule,CASE_confidence,CASE_lift,CASE_support,CASE_count,K-emoCon_confidence,K-emoCon_lift,K-emoCon_support,K-emoCon_count,CEAP_confidence,CEAP_lift,CEAP_support,CEAP_count,EmoWorker_v2_confidence,EmoWorker_v2_lift,EmoWorker_v2_support,EmoWorker_v2_count,avg_confidence,avg_lift,min_confidence,min_lift,avg_support,min_support
-(hrv_pnn50_low) => hrv_pnn50_low meets arousal_medium,0.8,0.8,0.8,16,0.75,0.75,0.75,3,0.6667,0.6667,0.1538,2,0.7727,0.7727,0.7083,17,0.7473,0.7473,0.6667,0.6667,0.603,0.1538
-(valence_high) => valence_high meets arousal_medium,0.85,0.85,0.85,17,0.6667,0.6667,0.5,2,0.6923,0.6923,0.6923,9,0.75,0.75,0.25,6,0.7397,0.7397,0.6667,0.6667,0.5731,0.25
-(hrv_pnn20_low) => hrv_pnn20_low meets arousal_medium,0.75,0.75,0.75,15,0.75,0.75,0.75,3,0.5,0.5,0.1538,2,0.6667,0.6667,0.5833,14,0.6667,0.6667,0.5,0.5,0.5593,0.1538
-(hrv_cvnn_medium) => hrv_cvnn_medium meets valence_medium,0.85,0.85,0.85,17,0.5,0.5,0.5,2,0.6667,0.6667,0.1538,2,0.619,0.619,0.5417,13,0.6589,0.6589,0.5,0.5,0.5114,0.1538
+eda_low meets eda_low => eda_low meets eda_low AND eda_low meets valence_medium AND eda_low equals valence_medium,0.6667,0.6667,0.5,10,1.0,1.0,0.25,1,0.8,0.8,0.3077,4,0.5263,0.5263,0.4167,10,0.7482,0.7482,0.5263,0.5263,0.3686,0.25
 (hrv_cvsd_medium) => hrv_cvsd_medium meets valence_medium,0.8,0.8,0.8,16,0.5,0.5,0.5,2,0.6667,0.6667,0.3077,4,0.5714,0.5714,0.5,12,0.6345,0.6345,0.5,0.5,0.5269,0.3077
+hrv_cvsd_medium equals hrv_rmssd_medium => hrv_cvsd_medium equals hrv_rmssd_medium AND hrv_cvsd_medium meets valence_medium AND hrv_rmssd_medium meets valence_medium,0.8,0.8,0.6,12,0.5,0.5,0.25,1,0.6,0.6,0.2308,3,0.5294,0.5294,0.375,9,0.6074,0.6074,0.5,0.5,0.3639,0.2308
+eda_medium meets eda_medium => eda_medium meets eda_medium AND eda_medium meets valence_medium AND eda_medium equals valence_medium,0.5789,0.5789,0.55,11,0.6667,0.6667,0.5,2,0.6667,0.6667,0.3077,4,0.5,0.5,0.4167,10,0.6031,0.6031,0.5,0.5,0.4436,0.3077
 (hrv_cvsd_medium) => hrv_cvsd_medium meets eda_medium,0.55,0.55,0.55,11,0.5,0.5,0.5,2,0.5,0.5909,0.2308,3,0.5714,0.5963,0.5,12,0.5304,0.5593,0.5,0.5,0.4452,0.2308

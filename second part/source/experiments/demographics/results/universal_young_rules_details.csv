@@ -1,7 +1,2 @@
 rule,CASE_confidence,CASE_lift,CASE_support,CASE_count,K-emoCon_confidence,K-emoCon_lift,K-emoCon_support,K-emoCon_count,CEAP_confidence,CEAP_lift,CEAP_support,CEAP_count,EmoWorker_v2_confidence,EmoWorker_v2_lift,EmoWorker_v2_support,EmoWorker_v2_count,avg_confidence,avg_lift,min_confidence,min_lift,avg_support,min_support
-(temp_medium) => temp_medium meets valence_medium,0.9,0.9,0.9,9,0.6957,0.6957,0.6667,16,1.0,1.0,0.0526,1,0.7143,0.7143,0.7143,5,0.8275,0.8275,0.6957,0.6957,0.5834,0.0526
-(hrv_pnn50_high) => hrv_pnn50_high meets arousal_medium,1.0,1.0,1.0,10,0.5909,0.5909,0.5417,13,0.6,0.6,0.1579,3,0.6667,0.7778,0.5714,4,0.7144,0.7422,0.5909,0.5909,0.5677,0.1579
-(hrv_hfn_high) => hrv_hfn_high meets valence_medium,1.0,1.0,1.0,10,0.6154,0.6154,0.3333,8,0.6,0.6,0.1579,3,0.5,0.5,0.2857,2,0.6788,0.6788,0.5,0.5,0.4442,0.1579
-(hrv_pnn50_medium) => hrv_pnn50_medium meets eda_peaks_high,0.5,0.5,0.5,5,0.5714,0.5714,0.5,12,0.75,0.75,0.1579,3,0.5714,0.5714,0.5714,4,0.5982,0.5982,0.5,0.5,0.4323,0.1579
 (hrv_cvnn_medium) => hrv_cvnn_medium meets eda_std_high,0.5,0.5,0.5,5,0.5,0.5,0.4167,10,0.8571,0.958,0.3158,6,0.5,0.5,0.4286,3,0.5893,0.6145,0.5,0.5,0.4153,0.3158
-(hrv_hfn_low) => hrv_hfn_low meets arousal_medium,0.7,0.7,0.7,7,0.5,0.5,0.4167,10,0.5,0.5,0.2105,4,0.5,0.5833,0.4286,3,0.55,0.5708,0.5,0.5,0.4389,0.2105

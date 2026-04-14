@@ -34,10 +34,10 @@ sys.path.insert(0, str(EXPERIMENTS_DIR))
 from armada_algorithm import ARMADA, TemporalRule, TemporalPattern
 from experiment_utils import run_armada_on_df, extract_rule_signatures, jaccard_similarity
 
-MINSUP = 0.1
+MINSUP = 0.3
 MINCONF = 0.5
 MAXGAP = 5
-MAX_PATTERN_SIZE = 2
+MAX_PATTERN_SIZE = 4
 
 DATA_DIR = PROJECT_DIR / "data" / "armada_ready"
 PROCESSED_DIRS = {
