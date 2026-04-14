@@ -29,7 +29,6 @@ sys.path.insert(0, str(EXPERIMENTS_DIR))
 
 from experiment_utils import (
     run_armada_on_df,
-    extract_rule_signatures,
     filter_rules
 )
 
@@ -50,6 +49,13 @@ DATASETS = {
     "K-emoCon":       DATA_DIR / "armada_k_emocon.csv",
     "CEAP-360VR":     DATA_DIR / "armada_ceap.csv",
     "EmoWorker_v2":   DATA_DIR / "armada_emoworker_v2.csv",
+}
+
+DISCRETE_DATASETS = {
+    "CASE (Discrete)":           EXPERIMENTS_DIR / "emotion_labels" / "results" / "armada_discrete_CASE.csv",
+    "K-emoCon (Discrete)":       EXPERIMENTS_DIR / "emotion_labels" / "results" / "armada_discrete_K-emoCon.csv",
+    "CEAP-360VR (Discrete)":     EXPERIMENTS_DIR / "emotion_labels" / "results" / "armada_discrete_CEAP.csv",
+    "EmoWorker_v2 (Discrete)":   EXPERIMENTS_DIR / "emotion_labels" / "results" / "armada_discrete_EmoWorker_v2.csv",
 }
 
 RESULTS_DIR = SCRIPT_DIR / "results"
@@ -112,27 +118,32 @@ def main():
     
     target_datasets = ["CASE", "K-emoCon", "CEAP-360VR", "EmoWorker_v2"]
     
-    orig_sets = {}
-    shuf_sets = {}
-    
-    orig_maps = {}
-    shuf_maps = {}
-    
-    for name in target_datasets:
-        path = DATASETS[name]
-        res = process_dataset(name, path, minsup=MINSUP)
-        orig_sets[name] = res["orig_set"]
-        shuf_sets[name] = res["shuf_set"]
-        orig_maps[name] = res["orig_map"]
-        shuf_maps[name] = res["shuf_map"]
+    def run_for_subset(title, dataset_mapping):
+        orig_sets = {}
+        shuf_sets = {}
+        orig_maps = {}
+        shuf_maps = {}
         
-    # Find universal intersection across all 4 datasets
-    universal_orig = set.intersection(*orig_sets.values()) if orig_sets else set()
-    universal_shuf = set.intersection(*shuf_sets.values()) if shuf_sets else set()
-    
-    # Check if ANY of the real universal rules appear in the shuffled universal rules
-    shared_in_both = universal_orig & universal_shuf
-    
+        for name in target_datasets:
+            actual_name = name + " (Discrete)" if "Discrete" in title else name
+            path = dataset_mapping[actual_name]
+            res = process_dataset(actual_name, path, minsup=MINSUP)
+            orig_sets[actual_name] = res["orig_set"]
+            shuf_sets[actual_name] = res["shuf_set"]
+            orig_maps[actual_name] = res["orig_map"]
+            shuf_maps[actual_name] = res["shuf_map"]
+            
+        universal_orig = set.intersection(*orig_sets.values()) if orig_sets else set()
+        universal_shuf = set.intersection(*shuf_sets.values()) if shuf_sets else set()
+        shared_in_both = universal_orig & universal_shuf
+        return orig_maps, shuf_maps, universal_orig, universal_shuf, shared_in_both, list(orig_sets.keys())
+
+    print("--- DIMENSIONAL MODEL ---")
+    orig_maps_dim, shuf_maps_dim, u_orig_dim, u_shuf_dim, shared_dim, keys_dim = run_for_subset("Dimensional", DATASETS)
+
+    print("--- DISCRETE MODEL ---")
+    orig_maps_disc, shuf_maps_disc, u_orig_disc, u_shuf_disc, shared_disc, keys_disc = run_for_subset("Discrete", DISCRETE_DATASETS)
+
     report_path = RESULTS_DIR / "shuffling_universal_report.md"
     with open(report_path, "w", encoding="utf-8") as f:
         f.write("# Experiment 2: Universal Rules Shuffling (Self-Annotated)\n\n")
@@ -140,49 +151,49 @@ def main():
         f.write("## Overview\n")
         f.write(f"Focuses on the 4 self-annotated datasets at a lowered threshold (**minsup**: {MINSUP}). Computes the intersection of rules across all 4 datasets to find 'universal' rules, and compares this against the universal rules found in randomly shuffled data to ensure the universality is genuine.\n\n")
         
-        f.write("## Universal Intersections (Across all 4 datasets)\n\n")
-        f.write(f"- **Universal Original Rules discovered:** {len(universal_orig)}\n")
-        f.write(f"- **Universal Shuffled Rules discovered:** {len(universal_shuf)}\n")
-        f.write(f"- **Original Universal Rules present in Shuffled Universal:** {len(shared_in_both)}\n\n")
-        
-        if universal_orig:
-            f.write("### Original Universal Rules:\n")
-            # Calculate averages and sort by Avg Conf
-            orig_stats = []
-            for r in universal_orig:
-                avg_conf = np.mean([orig_maps[d][r].confidence for d in target_datasets if r in orig_maps[d]])
-                avg_sup = np.mean([orig_maps[d][r].support for d in target_datasets if r in orig_maps[d]])
-                avg_lift = np.mean([orig_maps[d][r].lift for d in target_datasets if r in orig_maps[d]])
-                orig_stats.append((r, avg_conf, avg_sup, avg_lift))
+        def write_report_section(title, universal_orig, universal_shuf, shared_in_both, orig_maps, shuf_maps, keys):
+            f.write(f"## {title} Model Intersections (Across all 4 datasets)\n\n")
+            f.write(f"- **Universal Original Rules discovered:** {len(universal_orig)}\n")
+            f.write(f"- **Universal Shuffled Rules discovered:** {len(universal_shuf)}\n")
+            f.write(f"- **Original Universal Rules present in Shuffled Universal:** {len(shared_in_both)}\n\n")
             
-            orig_stats.sort(key=lambda x: -x[1]) # Sort descending by avg_conf
-            
-            f.write("| Rule Signature | Avg Conf | Avg Sup | Avg Lift |\n")
-            f.write("| --- | --- | --- | --- |\n")
-            for stat in orig_stats:
-                f.write(f"| `{stat[0]}` | {stat[1]:.4f} | {stat[2]:.4f} | {stat[3]:.4f} |\n")
-                
-        if universal_shuf:
-            f.write("\n### Shuffled Universal Rules:\n")
-            shuf_stats = []
-            for r in universal_shuf:
-                avg_conf = np.mean([shuf_maps[d][r].confidence for d in target_datasets if r in shuf_maps[d]])
-                avg_sup = np.mean([shuf_maps[d][r].support for d in target_datasets if r in shuf_maps[d]])
-                avg_lift = np.mean([shuf_maps[d][r].lift for d in target_datasets if r in shuf_maps[d]])
-                shuf_stats.append((r, avg_conf, avg_sup, avg_lift))
-            
-            shuf_stats.sort(key=lambda x: -x[1]) # Sort descending by avg_conf
-            
-            f.write("| Rule Signature | Avg Conf | Avg Sup | Avg Lift |\n")
-            f.write("| --- | --- | --- | --- |\n")
-            for stat in shuf_stats:
-                f.write(f"| `{stat[0]}` | {stat[1]:.4f} | {stat[2]:.4f} | {stat[3]:.4f} |\n")
-                
-        if shared_in_both:
-            f.write("\n### Rules crossing over (found in both):\n")
-            for r in sorted(list(shared_in_both)):
-                f.write(f"- `{r}`\n")
-                
+            if universal_orig:
+                f.write("### Original Universal Rules:\n")
+                orig_stats = []
+                for r in universal_orig:
+                    avg_conf = np.mean([orig_maps[d][r].confidence for d in keys if r in orig_maps[d]])
+                    avg_sup = np.mean([orig_maps[d][r].support for d in keys if r in orig_maps[d]])
+                    avg_lift = np.mean([orig_maps[d][r].lift for d in keys if r in orig_maps[d]])
+                    orig_stats.append((r, avg_conf, avg_sup, avg_lift))
+                orig_stats.sort(key=lambda x: -x[1])
+                f.write("| Rule Signature | Avg Conf | Avg Sup | Avg Lift |\n")
+                f.write("| --- | --- | --- | --- |\n")
+                for stat in orig_stats:
+                    f.write(f"| `{stat[0]}` | {stat[1]:.4f} | {stat[2]:.4f} | {stat[3]:.4f} |\n")
+                    
+            if universal_shuf:
+                f.write("\n### Shuffled Universal Rules:\n")
+                shuf_stats = []
+                for r in universal_shuf:
+                    avg_conf = np.mean([shuf_maps[d][r].confidence for d in keys if r in shuf_maps[d]])
+                    avg_sup = np.mean([shuf_maps[d][r].support for d in keys if r in shuf_maps[d]])
+                    avg_lift = np.mean([shuf_maps[d][r].lift for d in keys if r in shuf_maps[d]])
+                    shuf_stats.append((r, avg_conf, avg_sup, avg_lift))
+                shuf_stats.sort(key=lambda x: -x[1])
+                f.write("| Rule Signature | Avg Conf | Avg Sup | Avg Lift |\n")
+                f.write("| --- | --- | --- | --- |\n")
+                for stat in shuf_stats:
+                    f.write(f"| `{stat[0]}` | {stat[1]:.4f} | {stat[2]:.4f} | {stat[3]:.4f} |\n")
+                    
+            if shared_in_both:
+                f.write("\n### Rules crossing over (found in both):\n")
+                for r in sorted(list(shared_in_both)):
+                    f.write(f"- `{r}`\n")
+            f.write("\n---\n\n")
+
+        write_report_section("Dimensional", u_orig_dim, u_shuf_dim, shared_dim, orig_maps_dim, shuf_maps_dim, keys_dim)
+        write_report_section("Discrete", u_orig_disc, u_shuf_disc, shared_disc, orig_maps_disc, shuf_maps_disc, keys_disc)
+
     print("\nDone! Full report saved to results/shuffling_universal_report.md")
 
 if __name__ == "__main__":

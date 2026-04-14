@@ -62,6 +62,15 @@ DATASETS = {
     "EMBOA":          DATA_DIR / "armada_emboa.csv",
 }
 
+DISCRETE_DATASETS = {
+    "CASE (Discrete)":           EXPERIMENTS_DIR / "emotion_labels" / "results" / "armada_discrete_CASE.csv",
+    "K-emoCon (Discrete)":       EXPERIMENTS_DIR / "emotion_labels" / "results" / "armada_discrete_K-emoCon.csv",
+    "CEAP-360VR (Discrete)":     EXPERIMENTS_DIR / "emotion_labels" / "results" / "armada_discrete_CEAP.csv",
+    "EmoWorker_v2 (Discrete)":   EXPERIMENTS_DIR / "emotion_labels" / "results" / "armada_discrete_EmoWorker_v2.csv",
+    "K-emoCon (ext) (Discrete)": EXPERIMENTS_DIR / "emotion_labels" / "results" / "armada_discrete_K-emoCon_ext.csv",
+    "EMBOA (Discrete)":          EXPERIMENTS_DIR / "emotion_labels" / "results" / "armada_discrete_EMBOA.csv",
+}
+
 RESULTS_DIR = SCRIPT_DIR / "results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -151,6 +160,10 @@ def main():
     results = []
     
     for name, path in DATASETS.items():
+        res = process_dataset(name, path)
+        results.append(res)
+        
+    for name, path in DISCRETE_DATASETS.items():
         res = process_dataset(name, path)
         results.append(res)
         

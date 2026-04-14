@@ -1,11 +1,11 @@
 # Experiment 2: Universal Rules Shuffling (Self-Annotated)
 
-**Date:** 2026-04-14 10:10:31
+**Date:** 2026-04-14 22:45:36
 
 ## Overview
 Focuses on the 4 self-annotated datasets at a lowered threshold (**minsup**: 0.1). Computes the intersection of rules across all 4 datasets to find 'universal' rules, and compares this against the universal rules found in randomly shuffled data to ensure the universality is genuine.
 
-## Universal Intersections (Across all 4 datasets)
+## Dimensional Model Intersections (Across all 4 datasets)
 
 - **Universal Original Rules discovered:** 14
 - **Universal Shuffled Rules discovered:** 0
@@ -28,3 +28,15 @@ Focuses on the 4 self-annotated datasets at a lowered threshold (**minsup**: 0.1
 | `hrv_cvnn_high meets arousal_medium => hrv_cvnn_high meets arousal_medium AND hrv_cvnn_high meets valence_medium AND arousal_medium equals valence_medium` | 0.6408 | 0.3658 | 0.6408 |
 | `hrv_cvsd_low equals hrv_hfn_low AND hrv_cvsd_low equals hrv_rmssd_low AND hrv_hfn_low equals hrv_rmssd_low => hrv_cvsd_low equals hrv_hfn_low AND hrv_cvsd_low equals hrv_rmssd_low AND hrv_cvsd_low meets arousal_medium AND hrv_hfn_low equals hrv_rmssd_low AND hrv_hfn_low meets arousal_medium AND hrv_rmssd_low meets arousal_medium` | 0.6401 | 0.1500 | 0.6442 |
 | `hrv_cvsd_low equals hrv_hfn_low => hrv_cvsd_low equals hrv_hfn_low AND hrv_cvsd_low equals hrv_rmssd_low AND hrv_cvsd_low meets arousal_medium AND hrv_hfn_low equals hrv_rmssd_low AND hrv_hfn_low meets arousal_medium AND hrv_rmssd_low meets arousal_medium` | 0.6179 | 0.1500 | 2.0888 |
+
+---
+
+## Discrete Model Intersections (Across all 4 datasets)
+
+- **Universal Original Rules discovered:** 0
+- **Universal Shuffled Rules discovered:** 0
+- **Original Universal Rules present in Shuffled Universal:** 0
+
+
+---
+
