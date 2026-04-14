@@ -10,6 +10,7 @@ Grey cells mark when E is already part of the quadruplet.
 
 import sys
 from pathlib import Path
+import itertools
 
 import matplotlib
 import numpy as np
@@ -17,7 +18,6 @@ import pandas as pd
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import itertools
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_DIR = SCRIPT_DIR.parent
@@ -60,87 +60,115 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _clean(name):
-    """Remove newlines from dataset name for display."""
     return name.replace('\n', ' ')
 
 
-def main():
-    # Mine rules for each dataset
+def main(sparse=False):
     results = {}
     for name, path in DATASETS.items():
         print(f"Processing {_clean(name)}...")
         df = pd.read_csv(path)
         armada, patterns, rules = run_armada_on_df(df, MINSUP, MINCONF, MAXGAP, MAX_PATTERN_SIZE)
         raw_sigs = extract_rule_signatures(rules)
-        filtered = filter_rules(raw_sigs, FILTER_BVP_ONLY, FILTER_EDA_ONLY,
-                                FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
+        filtered = filter_rules(
+            raw_sigs,
+            FILTER_BVP_ONLY,
+            FILTER_EDA_ONLY,
+            FILTER_PHYSIO_CROSS,
+            FILTER_SINGLE_FEATURE,
+        )
         results[name] = filtered
         print(f"  {_clean(name)}: {len(filtered)} filtered rules")
 
-    names = list(results.keys())
+    all_names = list(results.keys())
+    all_quads = list(itertools.combinations(all_names, 4))
 
-    # Generate all quadruplets (C(6,4) = 15)
-    quads = list(itertools.combinations(names, 4))
-    n_rows = len(quads)
-    n_cols = len(names)
+    print(f"\nTotal quadruplets: {len(all_quads)}")
 
-    print(f"\nTotal quadruplets: {n_rows}")
+    # Build full 15x6 matrix on all_names / all_quads
+    matrix_full = np.zeros((len(all_quads), len(all_names)), dtype=int)
+    for i, quad in enumerate(all_quads):
+        shared_quad = results[quad[0]] & results[quad[1]] & results[quad[2]] & results[quad[3]]
+        for j, target_ds in enumerate(all_names):
+            matrix_full[i, j] = len(shared_quad & results[target_ds])
 
-    # Build quadruplet intersection matrix
-    matrix = np.zeros((n_rows, n_cols), dtype=int)
-    for i, (ds1, ds2, ds3, ds4) in enumerate(quads):
-        shared_quad = results[ds1] & results[ds2] & results[ds3] & results[ds4]
+    if sparse:
+        # Sprawdzamy czyste wartości w macierzy. Jeśli cały rząd lub cała kolumna ma same zera - wyrzucamy
+        row_mask = np.any(matrix_full > 0, axis=1)
+        col_mask = np.any(matrix_full > 0, axis=0)
+
+        print(f"  sparse: keeping {row_mask.sum()} / {len(all_quads)} rows, "
+              f"{col_mask.sum()} / {len(all_names)} cols")
+
+        if not row_mask.any() or not col_mask.any():
+            print("Sparse matrix is completely empty, skipping.")
+            return
+
+        # Explicit integer indices — avoids numpy bool array edge cases
+        row_idx = np.where(row_mask)[0].tolist()
+        col_idx = np.where(col_mask)[0].tolist()
+
+        quads = [all_quads[i] for i in row_idx]
+        names = [all_names[j] for j in col_idx]
+        matrix = matrix_full[np.ix_(row_idx, col_idx)]
+    else:
+        quads = all_quads
+        names = all_names
+        matrix = matrix_full
+
+    n_rows, n_cols = matrix.shape
+
+    # Build off_diag: NaN for grey cells (target in quad)
+    off_diag = matrix.astype(float)
+    for i, quad in enumerate(quads):
         for j, target_ds in enumerate(names):
-            matrix[i][j] = len(shared_quad & results[target_ds])
+            if target_ds in quad:
+                off_diag[i, j] = np.nan
 
-    # Create heatmap
-    fig, ax = plt.subplots(figsize=(8, 8))
+    valid_max = float(np.nanmax(off_diag)) if not np.all(np.isnan(off_diag)) else 1.0
+    if valid_max == 0:
+        valid_max = 1.0
+
+    # Dynamic figure size
+    fig_height = max(3, n_rows * 0.6 + 2.0)
+    fig_width = max(6, n_cols * 1.3 + 3.0)
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
 
     cmap = plt.cm.YlOrRd
-    off_diag = matrix.copy().astype(float)
-
-    # Mask when the column dataset is part of the row quadruplet
-    for i, quad in enumerate(quads):
-        for j, target_ds in enumerate(names):
-            if target_ds in quad:
-                off_diag[i][j] = np.nan
-
-    # Determine vmax from non-self cells
-    valid_max = np.nanmax(off_diag) if not np.all(np.isnan(off_diag)) else 1
-    if valid_max == 0:
-        valid_max = 1
-
-    # Plot off-diagonal with color map
     im = ax.imshow(off_diag, cmap=cmap, aspect='auto', vmin=0, vmax=valid_max)
 
-    # Plot quadruplet-member cells with grey
+    # Grey rectangles for self-member cells
     for i, quad in enumerate(quads):
         for j, target_ds in enumerate(names):
             if target_ds in quad:
-                ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1,
-                                           fill=True, color='#e0e0e0', zorder=2))
+                ax.add_patch(plt.Rectangle(
+                    (j - 0.5, i - 0.5), 1, 1,
+                    fill=True, color='#e0e0e0', zorder=2,
+                ))
 
-    # Add text annotations
+    # Text annotations
     for i in range(n_rows):
         for j in range(n_cols):
-            val = matrix[i][j]
             target_ds = names[j]
             quad = quads[i]
-            if target_ds in quad:
-                text_color = '#333333'
-                fontweight = 'bold'
-                fontsize = 10
-            else:
-                norm_val = val / valid_max
-                text_color = 'white' if norm_val > 0.6 else 'black'
-                fontweight = 'normal'
-                fontsize = 10
-            ax.text(j, i, str(val), ha='center', va='center',
-                    color=text_color, fontweight=fontweight, fontsize=fontsize,
-                    zorder=3)
+            cell_val = matrix[i, j]
+            cell_off = off_diag[i, j]
 
-    # Labels
-    row_labels = [_clean(q[0]) + ' + ' + _clean(q[1]) + ' + ' + _clean(q[2]) + ' + ' + _clean(q[3]) for q in quads]
+            if np.isnan(cell_off) and target_ds not in quad:
+                continue
+
+            if target_ds in quad:
+                ax.text(j, i, str(cell_val),
+                        ha='center', va='center',
+                        color='#333333', fontweight='bold', fontsize=9, zorder=3)
+            else:
+                norm_val = cell_val / valid_max
+                text_color = 'white' if norm_val > 0.6 else 'black'
+                ax.text(j, i, str(cell_val),
+                        ha='center', va='center',
+                        color=text_color, fontweight='normal', fontsize=9, zorder=3)
+
+    row_labels = [' + '.join(_clean(d) for d in q) for q in quads]
     ax.set_yticks(range(n_rows))
     ax.set_yticklabels(row_labels, fontsize=8, va='center')
 
@@ -151,48 +179,49 @@ def main():
     ax.set_xlabel('Fifth Dataset')
     ax.set_ylabel('Intersected Dataset Quadruplets')
 
-    # Colorbar
     cbar = plt.colorbar(im, ax=ax, pad=0.02)
     cbar.set_label('Shared rules (Quintuple Intersection)', fontsize=10)
 
-    # Title
-    ax.set_title('Generalization of Quadruplet Shared Rules\nto Fifth Datasets',
-                 fontsize=12, fontweight='bold', pad=15)
+    ax.set_title(
+        'Generalization of Quadruplet Shared Rules\nto Fifth Datasets',
+        fontsize=12, fontweight='bold', pad=15,
+    )
 
-    # Border
     for spine in ax.spines.values():
         spine.set_visible(True)
         spine.set_color('#cccccc')
 
     plt.tight_layout()
 
-    out_png = OUTPUT_DIR / "heatmap_quadruplets_generalization.png"
+    out_suffix = "_sparse" if sparse else ""
+    out_png = OUTPUT_DIR / f"heatmap_quadruplets_generalization{out_suffix}.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
-    print(f"\nSaved PNG to {out_png}")
+    plt.close(fig)
+    print(f"Saved PNG to {out_png}")
 
-    # Print quadruplet base intersections
     print("\nQuadruplet Base Intersections (rules shared by all 4):")
-    for i, (ds1, ds2, ds3, ds4) in enumerate(quads):
-        shared = results[ds1] & results[ds2] & results[ds3] & results[ds4]
-        label = _clean(ds1) + ' + ' + _clean(ds2) + ' + ' + _clean(ds3) + ' + ' + _clean(ds4)
+    for quad in quads:
+        shared = results[quad[0]] & results[quad[1]] & results[quad[2]] & results[quad[3]]
+        label = ' + '.join(_clean(d) for d in quad)
         print(f"  {label}: {len(shared)} rules")
 
-    # Top quintuplet generalizations
     print("\nTop 5 Generalizing Quintuplets (Quadruplet + 1):")
     quints = []
-    for i, (ds1, ds2, ds3, ds4) in enumerate(quads):
+    for i, quad in enumerate(quads):
         for j, target_ds in enumerate(names):
-            if target_ds not in (ds1, ds2, ds3, ds4):
+            if target_ds not in quad:
                 quints.append({
-                    'quadruplet': _clean(ds1) + ' + ' + _clean(ds2) + ' + ' + _clean(ds3) + ' + ' + _clean(ds4),
+                    'quadruplet': ' + '.join(_clean(d) for d in quad),
                     'target': _clean(target_ds),
-                    'rules': matrix[i][j]
+                    'rules': matrix[i, j],
                 })
-
     quint_df = pd.DataFrame(quints)
-    quint_df = quint_df.sort_values(by='rules', ascending=False).head(5)
-    print(quint_df.to_string(index=False))
+    if not quint_df.empty:
+        print(quint_df.sort_values('rules', ascending=False).head(5).to_string(index=False))
+    else:
+        print("No quintuplets to display.")
 
 
 if __name__ == "__main__":
     main()
+    main(sparse=True)

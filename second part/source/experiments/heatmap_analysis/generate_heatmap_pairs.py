@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 Generate a heatmap comparing the intersection of two datasets with a third distinct dataset.
-Uses RQ1 parameters (minsup=0.5, minconf=0.5, maxgap=5s).
+Uses RQ1 parameters (minsup=0.3, minconf=0.5, maxgap=5s).
 """
 
 import sys
 from pathlib import Path
+import itertools
 
 import matplotlib
 import numpy as np
@@ -13,7 +14,6 @@ import pandas as pd
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import itertools
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_DIR = SCRIPT_DIR.parent
@@ -55,11 +55,15 @@ OUTPUT_DIR = Path(__file__).parent / "results"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def main():
+def _clean(name):
+    return name.replace('\n', ' ')
+
+
+def main(sparse=False):
     # Mine rules for each dataset
     results = {}
     for name, path in DATASETS.items():
-        print(f"Processing {name}...")
+        print(f"Processing {_clean(name)}...")
         df = pd.read_csv(path)
         armada, patterns, rules = run_armada_on_df(df, MINSUP, MINCONF, MAXGAP, MAX_PATTERN_SIZE)
 
@@ -67,38 +71,67 @@ def main():
         filtered = filter_rules(raw_sigs, FILTER_BVP_ONLY, FILTER_EDA_ONLY,
                                 FILTER_PHYSIO_CROSS, FILTER_SINGLE_FEATURE)
         results[name] = filtered
-        print(f"  {name}: {len(filtered)} filtered rules")
+        print(f"  {_clean(name)}: {len(filtered)} filtered rules")
 
-    names = list(results.keys())
+    all_names = list(results.keys())
+    all_pairs = list(itertools.combinations(all_names, 2))
 
-    # Generate all pairs
-    pairs = list(itertools.combinations(names, 2))
-    n_rows = len(pairs)
-    n_cols = len(names)
+    print(f"\nTotal pairs: {len(all_pairs)}")
 
-    # Build pairs intersection matrix
-    matrix = np.zeros((n_rows, n_cols), dtype=int)
-    for i, (ds1, ds2) in enumerate(pairs):
+    # Build full pairs intersection matrix
+    matrix_full = np.zeros((len(all_pairs), len(all_names)), dtype=int)
+    for i, (ds1, ds2) in enumerate(all_pairs):
         shared_pair = results[ds1] & results[ds2]
-        for j, target_ds in enumerate(names):
+        for j, target_ds in enumerate(all_names):
             # Intersection of pair with target dataset
-            matrix[i][j] = len(shared_pair & results[target_ds])
+            matrix_full[i, j] = len(shared_pair & results[target_ds])
 
-    # Create heatmap
-    fig, ax = plt.subplots(figsize=(8, 10))
+    if sparse:
+        # Sprawdzamy czyste wartości w macierzy. Jeśli cały rząd lub cała kolumna ma same zera - wyrzucamy
+        row_mask = np.any(matrix_full > 0, axis=1)
+        col_mask = np.any(matrix_full > 0, axis=0)
+
+        print(f"  sparse: keeping {row_mask.sum()} / {len(all_pairs)} rows, "
+              f"{col_mask.sum()} / {len(all_names)} cols")
+
+        if not row_mask.any() or not col_mask.any():
+            print("Sparse matrix is completely empty, skipping.")
+            return
+
+        # Explicit integer indices — avoids numpy bool array edge cases
+        row_idx = np.where(row_mask)[0].tolist()
+        col_idx = np.where(col_mask)[0].tolist()
+
+        pairs = [all_pairs[i] for i in row_idx]
+        names = [all_names[j] for j in col_idx]
+        matrix = matrix_full[np.ix_(row_idx, col_idx)]
+    else:
+        pairs = all_pairs
+        names = all_names
+        matrix = matrix_full
+
+    n_rows, n_cols = matrix.shape
+
+    # Dynamic figure size based on remaining rows and columns
+    fig_height = max(4, n_rows * 0.6 + 2.0)
+    fig_width = max(6, n_cols * 1.3 + 3.0)
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
 
     cmap = plt.cm.YlOrRd
-    off_diag = matrix.copy().astype(float)
+    off_diag = matrix.astype(float)
 
     # Mask exactly when the column dataset is PART of the row pair
     for i, (ds1, ds2) in enumerate(pairs):
         for j, target_ds in enumerate(names):
             if target_ds in (ds1, ds2):
-                off_diag[i][j] = np.nan
+                off_diag[i, j] = np.nan
+
+    valid_max = float(np.nanmax(off_diag)) if not np.all(np.isnan(off_diag)) else 1.0
+    if valid_max == 0:
+        valid_max = 1.0
 
     # Plot off-diagonal with color map
-    im = ax.imshow(off_diag, cmap=cmap, aspect='auto',
-                   vmin=0, vmax=np.nanmax(off_diag) if np.nanmax(off_diag) > 0 else 1)
+    im = ax.imshow(off_diag, cmap=cmap, aspect='auto', vmin=0, vmax=valid_max)
 
     # Plot pair components with grey color
     for i, (ds1, ds2) in enumerate(pairs):
@@ -110,28 +143,30 @@ def main():
     # Add text annotations
     for i in range(n_rows):
         for j in range(n_cols):
-            val = matrix[i][j]
+            val = matrix[i, j]
             target_ds = names[j]
             ds1, ds2 = pairs[i]
+            
             if target_ds in (ds1, ds2):
                 text_color = '#333333'
                 fontweight = 'bold'
-                fontsize = 11
+                fontsize = 10
             else:
-                norm_val = val / max(np.nanmax(off_diag) if not np.isnan(np.nanmax(off_diag)) else 1, 1)
+                norm_val = val / valid_max
                 text_color = 'white' if norm_val > 0.6 else 'black'
                 fontweight = 'normal'
-                fontsize = 10
+                fontsize = 9
+                
             ax.text(j, i, str(val), ha='center', va='center',
                     color=text_color, fontweight=fontweight, fontsize=fontsize,
                     zorder=3)
 
     # Labels
-    row_labels = [p[0].replace('\n', ' ') + ' + ' + p[1].replace('\n', ' ') for p in pairs]
+    row_labels = [_clean(p[0]) + ' + ' + _clean(p[1]) for p in pairs]
     ax.set_yticks(range(n_rows))
-    ax.set_yticklabels(row_labels, fontsize=10, va='center')
+    ax.set_yticklabels(row_labels, fontsize=9, va='center')
 
-    col_labels = [n.replace('\n', ' ') for n in names]
+    col_labels = [_clean(n) for n in names]
     ax.set_xticks(range(n_cols))
     ax.set_xticklabels(col_labels, fontsize=10, ha='right', rotation=45)
 
@@ -143,7 +178,8 @@ def main():
     cbar.set_label('Shared rules (Triple Intersection)', fontsize=10)
 
     # Title
-    ax.set_title('Generalization of Pairwise Shared Rules to Third Datasets', fontsize=12, fontweight='bold', pad=15)
+    ax.set_title('Generalization of Pairwise Shared Rules to Third Datasets', 
+                 fontsize=12, fontweight='bold', pad=15)
 
     # Border
     for spine in ax.spines.values():
@@ -152,8 +188,10 @@ def main():
 
     plt.tight_layout()
 
-    out_png = OUTPUT_DIR / "heatmap_pairs_generalization.png"
+    out_suffix = "_sparse" if sparse else ""
+    out_png = OUTPUT_DIR / f"heatmap_pairs_generalization{out_suffix}.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
+    plt.close(fig)
     print(f"Saved PNG to {out_png}")
 
     # Print the top triplets for the report
@@ -163,15 +201,19 @@ def main():
         for j, target_ds in enumerate(names):
             if target_ds not in (ds1, ds2):
                 triplets.append({
-                    'pair': ds1.replace('\n', ' ') + ' + ' + ds2.replace('\n', ' '),
-                    'target': target_ds.replace('\n', ' '),
-                    'rules': matrix[i][j]
+                    'pair': _clean(ds1) + ' + ' + _clean(ds2),
+                    'target': _clean(target_ds),
+                    'rules': matrix[i, j]
                 })
 
     triplet_df = pd.DataFrame(triplets)
-    triplet_df = triplet_df.sort_values(by='rules', ascending=False).head(5)
-    print(triplet_df.to_string(index=False))
+    if not triplet_df.empty:
+        triplet_df = triplet_df.sort_values(by='rules', ascending=False).head(5)
+        print(triplet_df.to_string(index=False))
+    else:
+        print("No triplets to display.")
 
 
 if __name__ == "__main__":
     main()
+    main(sparse=True)

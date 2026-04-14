@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Generate a heatmap comparing the intersection of three datasets with remaining datasets.
-Uses RQ1 parameters (minsup=0.5, minconf=0.5, maxgap=5s).
+Uses RQ1 parameters (minsup=0.3, minconf=0.5, maxgap=5s).
 
 Matrix: 20 rows (all unique triplets from 6 datasets) x 6 columns (individual datasets).
 Cell value = len(A & B & C & D) where (A,B,C) is the row triplet and D is the column dataset.
@@ -10,6 +10,7 @@ Grey cells mark when D is already part of the triplet.
 
 import sys
 from pathlib import Path
+import itertools
 
 import matplotlib
 import numpy as np
@@ -17,7 +18,6 @@ import pandas as pd
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import itertools
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_DIR = SCRIPT_DIR.parent
@@ -64,7 +64,7 @@ def _clean(name):
     return name.replace('\n', ' ')
 
 
-def main():
+def main(sparse=False):
     # Mine rules for each dataset
     results = {}
     for name, path in DATASETS.items():
@@ -78,38 +78,64 @@ def main():
         results[name] = filtered
         print(f"  {_clean(name)}: {len(filtered)} filtered rules")
 
-    names = list(results.keys())
+    all_names = list(results.keys())
 
     # Generate all triplets (C(6,3) = 20)
-    triplets = list(itertools.combinations(names, 3))
-    n_rows = len(triplets)
-    n_cols = len(names)
+    all_triplets = list(itertools.combinations(all_names, 3))
 
-    print(f"\nTotal triplets: {n_rows}")
+    print(f"\nTotal triplets: {len(all_triplets)}")
 
-    # Build triplet intersection matrix
-    matrix = np.zeros((n_rows, n_cols), dtype=int)
-    for i, (ds1, ds2, ds3) in enumerate(triplets):
+    # Build full triplet intersection matrix
+    matrix_full = np.zeros((len(all_triplets), len(all_names)), dtype=int)
+    for i, (ds1, ds2, ds3) in enumerate(all_triplets):
         shared_triplet = results[ds1] & results[ds2] & results[ds3]
-        for j, target_ds in enumerate(names):
-            matrix[i][j] = len(shared_triplet & results[target_ds])
+        for j, target_ds in enumerate(all_names):
+            matrix_full[i, j] = len(shared_triplet & results[target_ds])
 
-    # Create heatmap
-    fig, ax = plt.subplots(figsize=(8, 12))
+    if sparse:
+        # Sprawdzamy czyste wartości w macierzy. Jeśli cały rząd lub cała kolumna ma same zera - wyrzucamy
+        row_mask = np.any(matrix_full > 0, axis=1)
+        col_mask = np.any(matrix_full > 0, axis=0)
+
+        print(f"  sparse: keeping {row_mask.sum()} / {len(all_triplets)} rows, "
+              f"{col_mask.sum()} / {len(all_names)} cols")
+
+        if not row_mask.any() or not col_mask.any():
+            print("Sparse matrix is completely empty, skipping.")
+            return
+
+        # Explicit integer indices — avoids numpy bool array edge cases
+        row_idx = np.where(row_mask)[0].tolist()
+        col_idx = np.where(col_mask)[0].tolist()
+
+        triplets = [all_triplets[i] for i in row_idx]
+        names = [all_names[j] for j in col_idx]
+        matrix = matrix_full[np.ix_(row_idx, col_idx)]
+    else:
+        triplets = all_triplets
+        names = all_names
+        matrix = matrix_full
+
+    n_rows, n_cols = matrix.shape
+
+    # Dynamic figure size based on remaining rows and columns
+    fig_height = max(4, n_rows * 0.5 + 2.0)
+    fig_width = max(6, n_cols * 1.3 + 3.0)
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
 
     cmap = plt.cm.YlOrRd
-    off_diag = matrix.copy().astype(float)
+    off_diag = matrix.astype(float)
 
     # Mask when the column dataset is part of the row triplet
     for i, tri in enumerate(triplets):
         for j, target_ds in enumerate(names):
             if target_ds in tri:
-                off_diag[i][j] = np.nan
+                off_diag[i, j] = np.nan
 
     # Determine vmax from non-self cells
-    valid_max = np.nanmax(off_diag) if not np.all(np.isnan(off_diag)) else 1
+    valid_max = float(np.nanmax(off_diag)) if not np.all(np.isnan(off_diag)) else 1.0
     if valid_max == 0:
-        valid_max = 1
+        valid_max = 1.0
 
     # Plot off-diagonal with color map
     im = ax.imshow(off_diag, cmap=cmap, aspect='auto', vmin=0, vmax=valid_max)
@@ -124,9 +150,10 @@ def main():
     # Add text annotations
     for i in range(n_rows):
         for j in range(n_cols):
-            val = matrix[i][j]
+            val = matrix[i, j]
             target_ds = names[j]
             tri = triplets[i]
+            
             if target_ds in tri:
                 text_color = '#333333'
                 fontweight = 'bold'
@@ -136,6 +163,7 @@ def main():
                 text_color = 'white' if norm_val > 0.6 else 'black'
                 fontweight = 'normal'
                 fontsize = 10
+                
             ax.text(j, i, str(val), ha='center', va='center',
                     color=text_color, fontweight=fontweight, fontsize=fontsize,
                     zorder=3)
@@ -167,8 +195,10 @@ def main():
 
     plt.tight_layout()
 
-    out_png = OUTPUT_DIR / "heatmap_triplets_generalization.png"
+    out_suffix = "_sparse" if sparse else ""
+    out_png = OUTPUT_DIR / f"heatmap_triplets_generalization{out_suffix}.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
+    plt.close(fig)
     print(f"\nSaved PNG to {out_png}")
 
     # Print triplet base intersections
@@ -187,13 +217,17 @@ def main():
                 quads.append({
                     'triplet': _clean(ds1) + ' + ' + _clean(ds2) + ' + ' + _clean(ds3),
                     'target': _clean(target_ds),
-                    'rules': matrix[i][j]
+                    'rules': matrix[i, j]
                 })
 
     quad_df = pd.DataFrame(quads)
-    quad_df = quad_df.sort_values(by='rules', ascending=False).head(5)
-    print(quad_df.to_string(index=False))
+    if not quad_df.empty:
+        quad_df = quad_df.sort_values(by='rules', ascending=False).head(5)
+        print(quad_df.to_string(index=False))
+    else:
+        print("No quadruplets to display.")
 
 
 if __name__ == "__main__":
     main()
+    main(sparse=True)
