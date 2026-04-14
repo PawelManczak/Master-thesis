@@ -7,7 +7,7 @@ This experiment aims to identify rules that are universally true across all eval
 - **minsup**: 0.1 (10% participants)
 - **minconf**: 0.5 (50% confidence)
 - **maxgap**: 5 seconds
-- **max_pattern_size**: 2
+- **max_pattern_size**: 4
 
 ## Rule Filters
 
@@ -22,12 +22,12 @@ Evaluated on 6 datasets: CASE, K-emoCon, CEAP, EmoWorker_v2, K-emo_ext, EMBOA
 
 | Dataset | Participants | Rules (Before Filters) | Rules (Filtered) |
 |-------|-------------|---------|-------|
-| **CASE** | 30 | 526 | 142 |
-| **K-emoCon** | 28 | 550 | 108 |
-| **CEAP** | 32 | 509 | 158 |
-| **EmoWorker_v2** | 31 | 471 | 130 |
-| **K-emo_ext** | 28 | 520 | 137 |
-| **EMBOA** | 16 | 271 | 96 |
+| **CASE** | 30 | 43453 | 19069 |
+| **K-emoCon** | 28 | 63947 | 25327 |
+| **CEAP** | 32 | 46746 | 27441 |
+| **EmoWorker_v2** | 31 | 25983 | 8915 |
+| **K-emo_ext** | 28 | 50619 | 22379 |
+| **EMBOA** | 16 | 35112 | 14787 |
 
 ## Universal Rules Identification
 
