@@ -30,10 +30,10 @@ sys.path.insert(0, str(PROJECT_DIR / "source" / "processing" / "armada"))
 sys.path.insert(0, str(EXPERIMENTS_DIR))
 
 
-MINSUP = 0.2       # 10% minimum support
-MINCONF = 0.2       # 10% minimum confidence
+MINSUP = 0.3       # 10% minimum support
+MINCONF = 0.5       # 10% minimum confidence
 MAXGAP = 5
-MAX_PATTERN_SIZE = 2
+MAX_PATTERN_SIZE = 4
 
 FILTER_BVP_ONLY = True
 FILTER_EDA_ONLY = True

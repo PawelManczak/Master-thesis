@@ -7,10 +7,10 @@ across datasets using **external observer annotations**:
 
 ## Experiment Parameters
 
-- **minsup**: 0.2 (20%)
-- **minconf**: 0.2 (20%)
+- **minsup**: 0.3 (30%)
+- **minconf**: 0.5 (50%)
 - **maxgap**: 5s
-- **max_pattern_size**: 2
+- **max_pattern_size**: 4
 
 ## Rule Filters
 
@@ -25,12 +25,12 @@ Evaluated on 2 datasets: EMBOA, K-emoCon-ext
 
 | Dataset | Participants | Rules (Before Filters) | Rules (Filtered) |
 |---------|-------------|------------------------|------------------|
-| **EMBOA** | 16 | 383 | 127 |
-| **K-emoCon-ext** | 28 | 1163 | 253 |
+| **EMBOA** | 16 | 6798 | 2972 |
+| **K-emoCon-ext** | 28 | 3735 | 1633 |
 
 ## Universal Rules (Present in ALL Datasets)
 
-Total universal rules found: **11**
+Total universal rules found: **7**
 
 ### Details (sorted by avg. confidence)
 
@@ -39,65 +39,61 @@ Total universal rules found: **11**
 | `(eda_std_high) => eda_std_high starts valence_medium` | **0.871** | 0.871 | 0.871 | 0.812 | 0.812 | 0.812 | c:0.81 l:0.81 s:0.81 n:13 | c:0.93 l:0.93 s:0.93 n:26 |
 | `(arousal_high) => arousal_high meets valence_medium` | **0.746** | 0.746 | 0.696 | 0.692 | 0.692 | 0.643 | c:0.80 l:0.80 s:0.75 n:12 | c:0.69 l:0.69 s:0.64 n:18 |
 | `(eda_max_low) => eda_max_low meets valence_medium` | **0.701** | 0.701 | 0.701 | 0.688 | 0.688 | 0.688 | c:0.69 l:0.69 s:0.69 n:11 | c:0.71 l:0.71 s:0.71 n:20 |
+| `eda_medium meets eda_max_medium AND eda_medium meets eda_medium AND eda_max_medium equals eda_medium => eda_medium meets eda_max_medium AND eda_medium meets eda_medium AND eda_medium meets valence_medium AND eda_max_medium equals eda_medium AND eda_max_medium equals valence_medium AND eda_medium equals valence_medium` | **0.700** | 0.700 | 0.317 | 0.500 | 0.500 | 0.312 | c:0.50 l:0.50 s:0.31 n:5 | c:0.90 l:0.90 s:0.32 n:9 |
+| `eda_medium meets eda_medium => eda_medium meets eda_medium AND eda_medium meets valence_medium AND eda_medium equals valence_medium` | **0.691** | 0.691 | 0.424 | 0.500 | 0.500 | 0.312 | c:0.50 l:0.50 s:0.31 n:5 | c:0.88 l:0.88 s:0.54 n:15 |
+| `eda_std_medium before eda_std_medium => eda_std_medium before eda_std_medium AND eda_std_medium before valence_medium AND eda_std_medium starts valence_medium` | **0.654** | 0.654 | 0.375 | 0.571 | 0.571 | 0.250 | c:0.57 l:0.57 s:0.25 n:4 | c:0.74 l:0.74 s:0.50 n:14 |
 | `(valence_high) => valence_high meets eda_medium` | **0.640** | 0.684 | 0.536 | 0.529 | 0.618 | 0.321 | c:0.75 l:0.75 s:0.75 n:12 | c:0.53 l:0.62 s:0.32 n:9 |
-| `(valence_high) => valence_high meets eda_std_high` | **0.579** | 0.579 | 0.487 | 0.471 | 0.471 | 0.286 | c:0.69 l:0.69 s:0.69 n:11 | c:0.47 l:0.47 s:0.29 n:8 |
-| `(arousal_high) => arousal_high meets eda_max_medium` | **0.564** | 0.582 | 0.527 | 0.462 | 0.497 | 0.429 | c:0.67 l:0.67 s:0.62 n:10 | c:0.46 l:0.50 s:0.43 n:12 |
-| `(arousal_high) => arousal_high meets eda_medium` | **0.545** | 0.580 | 0.509 | 0.423 | 0.494 | 0.393 | c:0.67 l:0.67 s:0.62 n:10 | c:0.42 l:0.49 s:0.39 n:11 |
-| `(valence_high) => valence_high meets eda_max_medium` | **0.489** | 0.502 | 0.420 | 0.353 | 0.380 | 0.214 | c:0.62 l:0.62 s:0.62 n:10 | c:0.35 l:0.38 s:0.21 n:6 |
-| `(valence_high) => valence_high meets hr_low` | **0.485** | 0.494 | 0.393 | 0.471 | 0.488 | 0.286 | c:0.50 l:0.50 s:0.50 n:8 | c:0.47 l:0.49 s:0.29 n:8 |
-| `(arousal_high) => arousal_high meets hr_high` | **0.382** | 0.386 | 0.357 | 0.231 | 0.239 | 0.214 | c:0.53 l:0.53 s:0.50 n:8 | c:0.23 l:0.24 s:0.21 n:6 |
-| `(valence_high) => valence_high meets arousal_high` | **0.303** | 0.325 | 0.245 | 0.294 | 0.317 | 0.179 | c:0.31 l:0.33 s:0.31 n:5 | c:0.29 l:0.32 s:0.18 n:5 |
 
 ## Dataset-Specific Rules
 
 ### EMBOA
-- Total filtered rules: 127
-- Rules unique to EMBOA: **116**
+- Total filtered rules: 2972
+- Rules unique to EMBOA: **2965**
 
   - `(arousal_high) => arousal_high before eda_low`
+  - `(arousal_high) => arousal_high before eda_low AND arousal_high before arousal_medium AND eda_low starts arousal_medium`
+  - `(arousal_high) => arousal_high before eda_low AND arousal_high before eda_max_low AND arousal_high before arousal_medium AND eda_low equals eda_max_low AND eda_low starts arousal_medium AND eda_max_low starts arousal_medium`
+  - `(arousal_high) => arousal_high before eda_low AND arousal_high before eda_max_low AND arousal_high before valence_medium AND eda_low equals eda_max_low AND eda_low starts valence_medium AND eda_max_low starts valence_medium`
+  - `(arousal_high) => arousal_high before eda_low AND arousal_high before eda_max_low AND eda_low equals eda_max_low`
+  - `(arousal_high) => arousal_high before eda_low AND arousal_high before valence_medium AND eda_low starts valence_medium`
   - `(arousal_high) => arousal_high before eda_max_low`
-  - `(arousal_high) => arousal_high equals eda_high`
-  - `(arousal_high) => arousal_high equals eda_max_high`
+  - `(arousal_high) => arousal_high before eda_max_low AND arousal_high before arousal_medium AND eda_max_low starts arousal_medium`
+  - `(arousal_high) => arousal_high before eda_max_low AND arousal_high before valence_medium AND eda_max_low starts valence_medium`
+  - `(arousal_high) => arousal_high equals eda_std_high AND arousal_high before eda_low AND arousal_high before eda_max_low AND eda_std_high before eda_low AND eda_std_high before eda_max_low AND eda_low equals eda_max_low`
+  - `(arousal_high) => arousal_high equals eda_std_high AND arousal_high before eda_low AND eda_std_high before eda_low`
+  - `(arousal_high) => arousal_high equals eda_std_high AND arousal_high before eda_max_low AND eda_std_high before eda_max_low`
+  - `(arousal_high) => arousal_high equals eda_std_high AND arousal_high equals hr_medium AND arousal_high before arousal_medium AND eda_std_high equals hr_medium AND eda_std_high before arousal_medium AND hr_medium before arousal_medium`
+  - `(arousal_high) => arousal_high equals eda_std_high AND arousal_high equals hr_medium AND arousal_high before valence_medium AND eda_std_high equals hr_medium AND eda_std_high before valence_medium AND hr_medium before valence_medium`
+  - `(arousal_high) => arousal_high equals eda_std_high AND arousal_high equals hr_medium AND eda_std_high equals hr_medium`
   - `(arousal_high) => arousal_high equals eda_std_low`
-  - `(arousal_high) => arousal_high equals eda_std_medium`
+  - `(arousal_high) => arousal_high equals eda_std_low AND arousal_high before arousal_medium AND eda_std_low before arousal_medium`
+  - `(arousal_high) => arousal_high equals eda_std_low AND arousal_high before valence_medium AND eda_std_low before valence_medium`
   - `(arousal_high) => arousal_high equals hr_low`
-  - `(arousal_high) => arousal_high equals hr_medium`
-  - `(arousal_high) => arousal_high equals valence_high`
-  - `(arousal_high) => arousal_high meets eda_std_high`
-  - `(arousal_low) => arousal_low before eda_low`
-  - `(arousal_low) => arousal_low before eda_max_low`
-  - `(arousal_low) => arousal_low before eda_max_medium`
-  - `(arousal_low) => arousal_low before hr_high`
-  - `(arousal_low) => arousal_low equals eda_high`
-  - `(arousal_low) => arousal_low equals eda_max_high`
-  - `(arousal_low) => arousal_low equals eda_medium`
-  - `(arousal_low) => arousal_low equals eda_std_high`
-  - `(arousal_low) => arousal_low equals hr_medium`
-  - `(arousal_low) => arousal_low equals valence_low`
-  - ... and 96 more
+  - `(arousal_high) => arousal_high equals hr_low AND arousal_high before arousal_medium AND hr_low before arousal_medium`
+  - ... and 2945 more
 
 ### K-emoCon-ext
-- Total filtered rules: 253
-- Rules unique to K-emoCon-ext: **242**
+- Total filtered rules: 1633
+- Rules unique to K-emoCon-ext: **1626**
 
   - `(arousal_high) => arousal_high before eda_peaks_high`
-  - `(arousal_high) => arousal_high before eda_peaks_low`
-  - `(arousal_high) => arousal_high before eda_scr_auc_high`
   - `(arousal_high) => arousal_high equals eda_peaks_medium`
   - `(arousal_high) => arousal_high equals eda_std_high`
-  - `(arousal_high) => arousal_high is-finished-by hr_low`
   - `(arousal_high) => arousal_high meets eda_high`
-  - `(arousal_high) => arousal_high meets eda_scr_amp_low`
   - `(arousal_high) => arousal_high meets eda_scr_amp_medium`
   - `(arousal_high) => arousal_high meets eda_scr_auc_medium`
   - `(arousal_high) => arousal_high meets eda_std_medium`
-  - `(arousal_high) => arousal_high starts eda_max_high`
   - `(arousal_high) => arousal_high starts eda_scr_auc_low`
-  - `(arousal_high) => arousal_high starts eda_std_low`
-  - `(arousal_high) => arousal_high starts hr_medium`
-  - `(arousal_low) => arousal_low before eda_max_high`
-  - `(arousal_low) => arousal_low before eda_peaks_low`
   - `(arousal_low) => arousal_low contains eda_scr_amp_medium`
   - `(arousal_low) => arousal_low contains eda_std_high`
   - `(arousal_low) => arousal_low contains eda_std_medium`
-  - ... and 222 more
+  - `(arousal_low) => arousal_low equals eda_max_medium`
+  - `(arousal_low) => arousal_low equals eda_max_medium AND arousal_low equals valence_medium AND eda_max_medium equals valence_medium`
+  - `(arousal_low) => arousal_low equals valence_medium`
+  - `(arousal_low) => arousal_low is-finished-by eda_peaks_high`
+  - `(arousal_low) => arousal_low is-finished-by eda_scr_auc_low`
+  - `(arousal_low) => arousal_low meets eda_peaks_medium`
+  - `(arousal_low) => arousal_low meets eda_scr_auc_medium`
+  - `(arousal_medium) => arousal_medium before eda_peaks_high`
+  - `(arousal_medium) => arousal_medium equals eda_scr_auc_medium`
+  - ... and 1606 more

@@ -2,11 +2,7 @@ rule,EMBOA_confidence,EMBOA_lift,EMBOA_support,EMBOA_count,K-emoCon-ext_confiden
 (eda_std_high) => eda_std_high starts valence_medium,0.8125,0.8125,0.8125,13,0.9286,0.9286,0.9286,26,0.8705,0.8705,0.8125,0.8125,0.8705,0.8125
 (arousal_high) => arousal_high meets valence_medium,0.8,0.8,0.75,12,0.6923,0.6923,0.6429,18,0.7462,0.7462,0.6923,0.6923,0.6964,0.6429
 (eda_max_low) => eda_max_low meets valence_medium,0.6875,0.6875,0.6875,11,0.7143,0.7143,0.7143,20,0.7009,0.7009,0.6875,0.6875,0.7009,0.6875
+eda_medium meets eda_max_medium AND eda_medium meets eda_medium AND eda_max_medium equals eda_medium => eda_medium meets eda_max_medium AND eda_medium meets eda_medium AND eda_medium meets valence_medium AND eda_max_medium equals eda_medium AND eda_max_medium equals valence_medium AND eda_medium equals valence_medium,0.5,0.5,0.3125,5,0.9,0.9,0.3214,9,0.7,0.7,0.5,0.5,0.317,0.3125
+eda_medium meets eda_medium => eda_medium meets eda_medium AND eda_medium meets valence_medium AND eda_medium equals valence_medium,0.5,0.5,0.3125,5,0.8824,0.8824,0.5357,15,0.6912,0.6912,0.5,0.5,0.4241,0.3125
+eda_std_medium before eda_std_medium => eda_std_medium before eda_std_medium AND eda_std_medium before valence_medium AND eda_std_medium starts valence_medium,0.5714,0.5714,0.25,4,0.7368,0.7368,0.5,14,0.6541,0.6541,0.5714,0.5714,0.375,0.25
 (valence_high) => valence_high meets eda_medium,0.75,0.75,0.75,12,0.5294,0.6176,0.3214,9,0.6397,0.6838,0.5294,0.6176,0.5357,0.3214
-(valence_high) => valence_high meets eda_std_high,0.6875,0.6875,0.6875,11,0.4706,0.4706,0.2857,8,0.579,0.579,0.4706,0.4706,0.4866,0.2857
-(arousal_high) => arousal_high meets eda_max_medium,0.6667,0.6667,0.625,10,0.4615,0.497,0.4286,12,0.5641,0.5819,0.4615,0.497,0.5268,0.4286
-(arousal_high) => arousal_high meets eda_medium,0.6667,0.6667,0.625,10,0.4231,0.4936,0.3929,11,0.5449,0.5801,0.4231,0.4936,0.5089,0.3929
-(valence_high) => valence_high meets eda_max_medium,0.625,0.625,0.625,10,0.3529,0.3801,0.2143,6,0.489,0.5025,0.3529,0.3801,0.4196,0.2143
-(valence_high) => valence_high meets hr_low,0.5,0.5,0.5,8,0.4706,0.488,0.2857,8,0.4853,0.494,0.4706,0.488,0.3929,0.2857
-(arousal_high) => arousal_high meets hr_high,0.5333,0.5333,0.5,8,0.2308,0.2393,0.2143,6,0.3821,0.3863,0.2308,0.2393,0.3571,0.2143
-(valence_high) => valence_high meets arousal_high,0.3125,0.3333,0.3125,5,0.2941,0.3167,0.1786,5,0.3033,0.325,0.2941,0.3167,0.2455,0.1786
